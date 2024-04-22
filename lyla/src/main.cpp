@@ -1,14 +1,67 @@
+/**
+ * Collect images for Edge Impulse image
+ * classification / object detection
+ *
+ * BE SURE TO SET "TOOLS > CORE DEBUG LEVEL = INFO"
+ * to turn on debug messages
+ */
+
+// if you define WIFI_SSID and WIFI_PASS before importing the library, 
+// you can call connect() instead of connect(ssid, pass)
+//
+// If you set HOSTNAME and your router supports mDNS, you can access
+// the camera at http://{HOSTNAME}.local
 #include <Arduino.h>
-#include "mic.h"
+#define WIFI_SSID "2146 Asbury"
+#define WIFI_PASS "NanoGold2146"
+#define HOSTNAME "esp32cam"
+
+
+#include <eloquent_esp32cam.h>
+#include <eloquent_esp32cam/extra/esp32/wifi/sta.h>
+#include <eloquent_esp32cam/viz/image_collection.h>
+
+using eloq::camera;
+using eloq::wifi;
+using eloq::viz::collectionServer;
+
 
 void setup() {
-  Serial.begin(115200);
-  setupI2S();
+    delay(3000);
+    Serial.begin(115200);
+    Serial.println("___IMAGE COLLECTION SERVER___");
+
+    // camera settings
+    // replace with your own model!
+    camera.pinout.aithinker();
+    camera.brownout.disable();
+    // Edge Impulse models work on square images
+    // face resolution is 240x240
+    camera.resolution.face();
+    camera.quality.high();
+
+    // init camera
+    while (!camera.begin().isOk())
+        Serial.println(camera.exception.toString());
+        delay(1000);
+
+    // connect to WiFi
+    while (!wifi.connect().isOk())
+      Serial.println(wifi.exception.toString());
+
+    // init face detection http server
+    while (!collectionServer.begin().isOk())
+        Serial.println(collectionServer.exception.toString());
+
+    Serial.println("Camera OK");
+    Serial.println("WiFi OK");
+    Serial.println("Image Collection Server OK");
+    Serial.println(collectionServer.address());
 }
 
 
 void loop() {
-  static int32_t raw_samples[SAMPLE_BUFFER_SIZE];
-  size_t bytes_read;
-  mic_i2s_to_buffer(raw_samples, SAMPLE_BUFFER_SIZE);
+    Serial.println(collectionServer.address());
+    delay(2000);
+    // server runs in a separate thread, no need to do anything here
 }
