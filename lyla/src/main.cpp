@@ -44,7 +44,7 @@ void startAudioCollection() {
                 webSocket.sendBIN((uint8_t*)mic_read_buffer, bytes_read);
             }
             buf_counter++;
-            if (buf_counter == 400) {
+            if (buf_counter == 80) {
                 buf_counter = 0;
                 webSocket.disconnect();
                 break;
