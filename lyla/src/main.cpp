@@ -19,7 +19,7 @@ uint8_t buf_counter = 0;
 // Setup Server URL
 const char* websocket_server_host = "10.105.252.142";
 const uint16_t websocket_server_port = 8888; 
-const char* websocket_path = "/path";
+const char* websocket_path = "/audio";
 
 
 // // Button handler
