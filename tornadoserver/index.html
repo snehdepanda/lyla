@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Transcript</title>
+    <script>
+        var ws = new WebSocket("ws://10.105.252.142:8888/transcript");
+
+        ws.onmessage = function(event) {
+            var messageBox = document.getElementById('messageBox');
+            messageBox.textContent = event.data;  // Update the message box with the received transcript
+        };
+
+        window.onload = function() {
+            var btn = document.getElementById('refresh');
+            btn.onclick = function() {
+                ws.send('refresh');  // Request the latest transcript
+            };
+        };
+    </script>
+</head>
+<body>
+    <h1>Transcript:</h1>
+    <div id="messageBox" style="width: 600px; height: 150px; border: 1px solid black; padding: 10px; overflow: scroll;">
+        Waiting for transcript...
+    </div>
+    <button id="refresh">Refresh Transcript</button>
+</body>
+</html>
