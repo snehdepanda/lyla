@@ -6,7 +6,9 @@ import json  # Used for working with JSON data
 class Caller:
     def __init__(self):
         # CHAT_API_KEY = 'sk-proj-rUsEo9MJd2sZg0Hy5bGGT3BlbkFJizaob0ZJyPssZG8iFWeI'
-        self.client = OpenAI()   # default calls os.environ.get("OPENAI_API_KEY")
+        self.client = OpenAI(
+            api_key='sk-proj-rUsEo9MJd2sZg0Hy5bGGT3BlbkFJizaob0ZJyPssZG8iFWeI'
+            )   # default calls os.environ.get("OPENAI_API_KEY")
 
         self.chunk_size = 1024
         self.xi_key = "a38175cb391b4c1e2a2ba89b12f9dfb9"
