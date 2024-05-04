@@ -18,400 +18,52 @@
 // send character array to amazon aws
 // */
 
-// // if you define WIFI_SSID and WIFI_PASS before importing the library, 
-// // you can call connect() instead of connect(ssid, pass)
-// //
 
-// #include <Arduino.h>
-// #include <Wifi.h>
-// #include <WiFiManager.h>
-
-// #define WIFI_SSID "2146 Asbury"
-// #define WIFI_PASS "NanoGold2146"
-// #define HOSTNAME "esp32cam"
-// #define IMG_SIZE 9216
-
-// #include <eloquent_esp32cam.h>
-// #include <eloquent_esp32cam/extra/esp32/wifi/sta.h>
-// #include <eloquent_esp32cam/viz/image_collection.h>
-// #include <sign-language_inferencing.h>
-// #include "edge-impulse-sdk/dsp/image/image.hpp"
-
-// #include "mic.h"
-// #include "ei_utils.h"
-
-// using eloq::camera;
-// using eloq::wifi;
-// using eloq::viz::collectionServer;
-
-// /* Constant defines -------------------------------------------------------- */
-// #define EI_CAMERA_RAW_FRAME_BUFFER_COLS           320
-// #define EI_CAMERA_RAW_FRAME_BUFFER_ROWS           240
-// #define EI_CAMERA_FRAME_BYTE_SIZE                 3
-
-// /* Private variables ------------------------------------------------------- */
-// static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
-// static bool is_initialised = false;
-// uint8_t *snapshot_buf; //points to the output of the capture
-
-
-// // Image has 9216 pixels with rgb values for each pixel, so 24 bits per pixel
-// const uint32_t image_buffer[2*IMG_SIZE] = {0};
-// const uint32_t features[IMG_SIZE] = {0};
-
-// void ei_camera_deinit(void);
-// bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
-// static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
-
-// // used in static_buffer.ino as one way to get data
-// int raw_feature_get_data(size_t offset, size_t length, float *out_ptr) {
-//     memcpy(out_ptr, features + offset, length * sizeof(float));
-//     return 0;
-// }
-
-// void print_inference_result(ei_impulse_result_t result);
-
-// void setup() {
-//     delay(3000);
-//     Serial.begin(115200);
-//     Serial.println("EE 327 Project");
-
-//     // connect to WiFi
-//     // Use AutoConnect
-//     // WiFiManager wifiManager;
-//     // wifiManager.autoConnect("AutoConnectAP1"); 
-//     // Serial.println("Connected to WiFi!");    
-
-//     // camera settings
-//     // replace with your own model!
-//     camera.pinout.aithinker();
-//     camera.brownout.disable();
-//     // Edge Impulse models use square images 96x96
-//     camera.resolution.square96();
-//     camera.quality.high();
-
-//     // init camera
-//     while (!camera.begin().isOk())
-//         Serial.println(camera.exception.toString());
-//         delay(1000);
-//     is_initialised = true;
-
-//     // Using house wifi
-//     // while (!wifi.connect().isOk())
-//     //   Serial.println(wifi.exception.toString());
-
-//     // // init face detection http server
-//     // while (!collectionServer.begin().isOk())
-//     //     Serial.println(collectionServer.exception.toString());
-
-//     Serial.println("Camera OK");
-//     Serial.println("WiFi OK");
-//     Serial.println("Starting inference");
-//     // Serial.println(collectionServer.address());
-// }
-
-
-// void loop() {
-//     delay(2000);
-//     // server runs in a separate thread, no need to do anything here
-
-//     snapshot_buf = (uint8_t*)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
-//     // check if allocation was successful
-//     if(snapshot_buf == nullptr) {
-//         ei_printf("ERR: Failed to allocate snapshot buffer!\n");
-//         return;
-//     }
-
-//     signal_t signal;
-//     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-//     signal.get_data = &ei_camera_get_data;
-
-//     if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
-//         ei_printf("Failed to capture image\r\n");
-//         free(snapshot_buf);
-//         return;
-//     }
-
-//     // // check if correct size
-//     // if (sizeof(features) / sizeof(uint32_t) != IMG_SIZE) {
-//     //     ei_printf("The size of your 'features' array is not correct. Expected %lu items, but had %lu\n",
-//     //         IMG_SIZE, sizeof(features) / sizeof(uint32_t));
-//     //     delay(1000);
-//     //     return;
-//     // }
-
-//     // run the classifier
-//     ei_impulse_result_t result = {0};
-    
-
-//     // invoke the impulse
-//     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-//     if (err != EI_IMPULSE_OK) {
-//         ei_printf("ERR: Failed to run classifier (%d)\n", err);
-//         return;
-//     }
-
-//     // print inference return code
-//     ei_printf("run_classifier returned: %d\r\n", err);
-//     print_inference_result(result);
-
-//     delay(1000);
-// }
-
-
-
-
-// void print_inference_result(ei_impulse_result_t result) {
-
-//     // Print how long it took to perform inference
-//     ei_printf("Timing: DSP %d ms, inference %d ms, anomaly %d ms\r\n",
-//             result.timing.dsp,
-//             result.timing.classification,
-//             result.timing.anomaly);
-
-//     // Print the prediction results (object detection)
-// #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-//     ei_printf("Object detection bounding boxes:\r\n");
-//     for (uint32_t i = 0; i < result.bounding_boxes_count; i++) {
-//         ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
-//         if (bb.value == 0) {
-//             continue;
-//         }
-//         ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
-//                 bb.label,
-//                 bb.value,
-//                 bb.x,
-//                 bb.y,
-//                 bb.width,
-//                 bb.height);
-//     }
-
-//     // Print the prediction results (classification)
-// #else
-//     ei_printf("Predictions:\r\n");
-//     for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
-//         ei_printf("  %s: ", ei_classifier_inferencing_categories[i]);
-//         ei_printf("%.5f\r\n", result.classification[i].value);
-//     }
-// #endif
-
-//     // Print anomaly result (if it exists)
-// #if EI_CLASSIFIER_HAS_ANOMALY == 1
-//     ei_printf("Anomaly prediction: %.3f\r\n", result.anomaly);
-// #endif
-
-// }
-
-
-
-// /**
-//  * @brief      Stop streaming of sensor data
-//  */
-// void ei_camera_deinit(void) {
-
-//     //deinitialize the camera
-//     esp_err_t err = esp_camera_deinit();
-
-//     if (err != ESP_OK)
-//     {
-//         ei_printf("Camera deinit failed\n");
-//         return;
-//     }
-
-//     is_initialised = false;
-//     return;
-// }
-
-
-// /**
-//  * @brief      Capture, rescale and crop image
-//  *
-//  * @param[in]  img_width     width of output image
-//  * @param[in]  img_height    height of output image
-//  * @param[in]  out_buf       pointer to store output image, NULL may be used
-//  *                           if ei_camera_frame_buffer is to be used for capture and resize/cropping.
-//  *
-//  * @retval     false if not initialised, image captured, rescaled or cropped failed
-//  *
-//  */
-// bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) {
-//     bool do_resize = false;
-
-//     if (!is_initialised) {
-//         ei_printf("ERR: Camera is not initialized\r\n");
-//         return false;
-//     }
-
-//     camera_fb_t *fb = esp_camera_fb_get();
-
-//     if (!fb) {
-//         ei_printf("Camera capture failed\n");
-//         return false;
-//     }
-
-//    bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, snapshot_buf);
-
-//    esp_camera_fb_return(fb);
-
-//    if(!converted){
-//        ei_printf("Conversion failed\n");
-//        return false;
-//    }
-
-//     if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS)
-//         || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS)) {
-//         do_resize = true;
-//     }
-
-//     if (do_resize) {
-//         ei::image::processing::crop_and_interpolate_rgb888(
-//         out_buf,
-//         EI_CAMERA_RAW_FRAME_BUFFER_COLS,
-//         EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
-//         out_buf,
-//         img_width,
-//         img_height);
-//     }
-
-
-//     return true;
-// }
-
-// static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
-// {
-//     // we already have a RGB888 buffer, so recalculate offset into pixel index
-//     size_t pixel_ix = offset * 3;
-//     size_t pixels_left = length;
-//     size_t out_ptr_ix = 0;
-
-//     while (pixels_left != 0) {
-//         // Swap BGR to RGB here
-//         // due to https://github.com/espressif/esp32-camera/issues/379
-//         out_ptr[out_ptr_ix] = (snapshot_buf[pixel_ix + 2] << 16) + (snapshot_buf[pixel_ix + 1] << 8) + snapshot_buf[pixel_ix];
-
-//         // go to the next pixel
-//         out_ptr_ix++;
-//         pixel_ix+=3;
-//         pixels_left--;
-//     }
-//     // and done!
-//     return 0;
-// }
-
-/* Edge Impulse Arduino examples
- * Copyright (c) 2022 EdgeImpulse Inc.
- *
 
 /* Includes ---------------------------------------------------------------- */
 #include <Arduino.h>
+#include <WebSocketsClient.h>
 #include <sign-language_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
 #include <WiFi.h>
-#include <WiFiManager.h>
-
+// #include <WiFiManager.h>
 #include "esp_camera.h"
+
+#include "ei_utils.h"
+#include "website.h"
 
 // Select camera model - find more camera models in camera_pins.h file here
 // https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Camera/CameraWebServer/camera_pins.h
 
-#define CAMERA_MODEL_AI_THINKER // Has PSRAM
-//#define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
-#if defined(CAMERA_MODEL_ESP_EYE)
-#define PWDN_GPIO_NUM    -1
-#define RESET_GPIO_NUM   -1
-#define XCLK_GPIO_NUM    4
-#define SIOD_GPIO_NUM    18
-#define SIOC_GPIO_NUM    23
-
-#define Y9_GPIO_NUM      36
-#define Y8_GPIO_NUM      37
-#define Y7_GPIO_NUM      38
-#define Y6_GPIO_NUM      39
-#define Y5_GPIO_NUM      35
-#define Y4_GPIO_NUM      14
-#define Y3_GPIO_NUM      13
-#define Y2_GPIO_NUM      34
-#define VSYNC_GPIO_NUM   5
-#define HREF_GPIO_NUM    27
-#define PCLK_GPIO_NUM    25
-
-#elif defined(CAMERA_MODEL_AI_THINKER)
-#define PWDN_GPIO_NUM     32
-#define RESET_GPIO_NUM    -1
-#define XCLK_GPIO_NUM      0
-#define SIOD_GPIO_NUM     26
-#define SIOC_GPIO_NUM     27
-
-#define Y9_GPIO_NUM       35
-#define Y8_GPIO_NUM       34
-#define Y7_GPIO_NUM       39
-#define Y6_GPIO_NUM       36
-#define Y5_GPIO_NUM       21
-#define Y4_GPIO_NUM       19
-#define Y3_GPIO_NUM       18
-#define Y2_GPIO_NUM        5
-#define VSYNC_GPIO_NUM    25
-#define HREF_GPIO_NUM     23
-#define PCLK_GPIO_NUM     22
-
-#else
-#error "Camera model not selected"
-#endif
-
-/* Constant defines -------------------------------------------------------- */
-#define EI_CAMERA_RAW_FRAME_BUFFER_COLS           320
-#define EI_CAMERA_RAW_FRAME_BUFFER_ROWS           240
-#define EI_CAMERA_FRAME_BYTE_SIZE                 3
 
 /* Private variables ------------------------------------------------------- */
+const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
+const uint16_t port = 8888;
+const char* endpoint = "/websocket_esp32";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 static bool is_initialised = false;
 uint8_t *snapshot_buf; //points to the output of the capture
 
-static camera_config_t camera_config = {
-    .pin_pwdn = PWDN_GPIO_NUM,
-    .pin_reset = RESET_GPIO_NUM,
-    .pin_xclk = XCLK_GPIO_NUM,
-    .pin_sscb_sda = SIOD_GPIO_NUM,
-    .pin_sscb_scl = SIOC_GPIO_NUM,
-
-    .pin_d7 = Y9_GPIO_NUM,
-    .pin_d6 = Y8_GPIO_NUM,
-    .pin_d5 = Y7_GPIO_NUM,
-    .pin_d4 = Y6_GPIO_NUM,
-    .pin_d3 = Y5_GPIO_NUM,
-    .pin_d2 = Y4_GPIO_NUM,
-    .pin_d1 = Y3_GPIO_NUM,
-    .pin_d0 = Y2_GPIO_NUM,
-    .pin_vsync = VSYNC_GPIO_NUM,
-    .pin_href = HREF_GPIO_NUM,
-    .pin_pclk = PCLK_GPIO_NUM,
-
-    //XCLK 20MHz or 10MHz for OV2640 double FPS (Experimental)
-    .xclk_freq_hz = 20000000,
-    .ledc_timer = LEDC_TIMER_0,
-    .ledc_channel = LEDC_CHANNEL_0,
-
-    .pixel_format = PIXFORMAT_JPEG, //YUV422,GRAYSCALE,RGB565,JPEG
-    .frame_size = FRAMESIZE_QVGA,    //QQVGA-UXGA Do not use sizes above QVGA when not JPEG
-
-    .jpeg_quality = 12, //0-63 lower number means higher quality
-    .fb_count = 1,       //if more than one, i2s runs in continuous mode. Use only with JPEG
-    .fb_location = CAMERA_FB_IN_PSRAM,
-    .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
-};
 
 /* Function definitions ------------------------------------------------------- */
 bool ei_camera_init(void);
 void ei_camera_deinit(void);
 bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) ;
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
+void send_image_to_server(uint8_t *img);
 
+/*Wifi definitions*/
+const char* ssid = "2146 Asbury";
+const char* pass = "NanoGold2146";
 
 const uint8_t num_chars = 10;
-uint8_t symbols[num_chars];
+uint8_t tokens[num_chars];
 static uint8_t ind = 0;
+
+
+WebSocketsClient client;
+
 
 /**
 * @brief      Arduino setup function
@@ -420,8 +72,8 @@ void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
-    //comment out the below line to start inference immediately after upload
-    while (!Serial);
+    // Serial.println(WiFi.macAddress()); // E4:65:B8:6F:4C:88
+
     Serial.println("Edge Impulse Inferencing Demo");
     if (ei_camera_init() == false) {
         ei_printf("Failed to initialize Camera!\r\n");
@@ -430,9 +82,32 @@ void setup()
         ei_printf("Camera initialized\r\n");
     }
 
-    WiFiManager wifiManager;
-    wifiManager.autoConnect("AutoConnectAP1"); 
-    Serial.println("Connected to WiFi!");
+    // Connect to WiFi
+    WiFi.mode(WIFI_STA);
+	WiFi.begin(ssid, pass);
+	
+	/* In case you want to use eduroam*/
+    // Serial.println("Connecting to WPA2 Enterprise network");
+    // esp_wifi_sta_wpa2_ent_set_identity((uint8_t*) eap_anonymous_id, strlen(eap_anonymous_id));
+    // esp_wifi_sta_wpa2_ent_set_username((uint8_t*) eap_id, strlen(eap_id));
+    // esp_wifi_sta_wpa2_ent_set_password((uint8_t*) eap_password, strlen(eap_password));
+    // esp_wifi_sta_wpa2_ent_enable();
+
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    // WiFiManager wifiManager;
+    // wifiManager.autoConnect("AutoConnectAP1"); 
+    // Serial.println("Connected to WiFi!");
+
+
+    // Connect to WebSocket server
+    client.begin(url, port, endpoint);
+    client.onEvent(webSocketEvent);
+    client.setReconnectInterval(5000);
 
     ei_printf("\nStarting continious inference in 2 seconds...\n");
     ei_sleep(2000);
@@ -447,13 +122,15 @@ void setup()
 */
 void loop()
 {
+    // client.sendTXT("hello");
+    client.loop();
 
-    // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
-    if (ei_sleep(5) != EI_IMPULSE_OK) {
-        return;
-    }
+    // // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
+    // if (ei_sleep(5) != EI_IMPULSE_OK) {
+    //     return;
+    // }
 
-    snapshot_buf = (uint8_t*)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
+    snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
 
     // check if allocation was successful
     if(snapshot_buf == nullptr) {
@@ -470,6 +147,8 @@ void loop()
         free(snapshot_buf);
         return;
     }
+    ei_printf("input width: %i, input height: %i", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+    client.loop();
 
     // Run the classifier
     ei_impulse_result_t result = { 0 };
@@ -493,7 +172,7 @@ void loop()
         }
         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
         if (ind < num_chars) {
-            symbols[ind] = bb.label[0];
+            tokens[ind] = bb.label[0];
             ind++;
             ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
             break;
@@ -512,10 +191,19 @@ void loop()
 #if EI_CLASSIFIER_HAS_ANOMALY == 1
         ei_printf("    anomaly score: %.3f\n", result.anomaly);
 #endif
-
-
+    if (ind == 10) {
+        ind = 0;
+        client.sendTXT(tokens, 10);
+    }
     free(snapshot_buf);
+    // ei_sleep(5);
 
+}
+
+void send_image_to_server(char *img) {
+    // send bitmap image to server
+    // client.sendBIN(img, sizeof(img));
+    client.sendTXT(img, sizeof(img));
 }
 
 /**
@@ -605,14 +293,17 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
         return false;
     }
 
-   bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, snapshot_buf);
+    // send_image_to_server(fb);
+    // client.loop();
 
-   esp_camera_fb_return(fb);
+    bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
 
-   if(!converted){
-       ei_printf("Conversion failed\n");
-       return false;
-   }
+    esp_camera_fb_return(fb);
+
+    if(!converted){
+        ei_printf("Conversion failed\n");
+        return false;
+    }
 
     if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS)
         || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS)) {
@@ -657,3 +348,5 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
 #if !defined(EI_CLASSIFIER_SENSOR) || EI_CLASSIFIER_SENSOR != EI_CLASSIFIER_SENSOR_CAMERA
 #error "Invalid model for current sensor"
 #endif
+
+
