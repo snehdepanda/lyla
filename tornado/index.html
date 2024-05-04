@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebSocket Client</title>
+<style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #messages { border: 1px solid #ccc; padding: 10px; width: 300px; height: 200px; overflow-y: scroll; margin-bottom: 10px; }
+    input, button { padding: 10px; }
+    button { cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Welcome to WebSocket Messaging</h1>
+<div id="messages"></div>
+<input type="text" id="messageInput" placeholder="Type a message..." />
+<button onclick="sendMessage()">Send</button>
+
+<script>
+    var ws = new WebSocket('ws://' + window.location.host + '/websocket');
+    var messages = document.getElementById('messages');
+
+    ws.onmessage = function(event) {
+        var message = document.createElement('div');
+        message.textContent = 'Received: ' + event.data;
+        messages.appendChild(message);
+        messages.scrollTop = messages.scrollHeight;  // Auto scroll to the bottom
+    };
+
+    ws.onopen = function(event) {
+        var message = document.createElement('div');
+        message.textContent = 'Connection established!';
+        messages.appendChild(message);
+    };
+
+    ws.onclose = function(event) {
+        var message = document.createElement('div');
+        message.textContent = 'Connection closed!';
+        messages.appendChild(message);
+    };
+
+    ws.onerror = function(event) {
+        var message = document.createElement('div');
+        message.textContent = 'Error occurred!';
+        messages.appendChild(message);
+    };
+
+    function sendMessage() {
+        var input = document.getElementById('messageInput');
+        if (input.value.trim() !== '') {
+            ws.send(input.value);
+            var message = document.createElement('div');
+            message.textContent = 'Sent: ' + input.value;
+            messages.appendChild(message);
+            input.value = '';  // Clear input after sending
+        }
+    }
+</script>
+</body>
+</html>
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebSocket Image Viewer</title>
+<style>
+    img {
+        width: 100%;
+        max-width: 640px;
+        height: auto;
+        border: 1px solid black;
+    }
+</style>
+</head>
+<body>
+<h1>Live Image Stream</h1>
+<img id="liveImage" src="" alt="Live image stream will appear here...">
+<script>
+    var ws = new WebSocket('ws://' + window.location.host + '/websocket');
+
+    ws.onmessage = function(event) {
+        // Set the source of the img element to the received image data
+        document.getElementById('liveImage').src = 'data:image/png;base64,' + event.data;
+    };
+
+    ws.onopen = function() {
+        console.log('WebSocket connection established');
+    };
+
+    ws.onclose = function() {
+        console.log('WebSocket connection closed');
+    };
+
+    ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+    };
+</script>
+</body>
+</html> -->
