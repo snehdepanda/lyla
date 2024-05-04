@@ -65,5 +65,6 @@ def update_all_clients(message, bin=False):
 if __name__ == "__main__":
     app = make_app()
     app.listen(8888)
-    print("Server is running at http://192.168.4.82:8888")
+    print("Server is running at http://10.105.100.183:8888")
+    # print("Server is running at http://192.168.4.82:8888")
     tornado.ioloop.IOLoop.current().start()

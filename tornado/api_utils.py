@@ -5,9 +5,9 @@ import json  # Used for working with JSON data
 
 class Caller:
     def __init__(self):
-        # CHAT_API_KEY = 'sk-proj-rUsEo9MJd2sZg0Hy5bGGT3BlbkFJizaob0ZJyPssZG8iFWeI'
+        # CHAT_API_KEY = 'sk-proj-rUsEo9MJd2sZg0Hy5bGGT3BlbkFJizaob0ZJyPssZG8iFWeI' # IT IS SECRET!
         self.client = OpenAI(
-            api_key='sk-proj-rUsEo9MJd2sZg0Hy5bGGT3BlbkFJizaob0ZJyPssZG8iFWeI'
+            api_key='sk-proj-rQ3i42nOcszmyxggXkfkT3BlbkFJMglQVZllqH3VraJG1iG7'
             )   # default calls os.environ.get("OPENAI_API_KEY")
 
         self.chunk_size = 1024
@@ -24,7 +24,7 @@ class Caller:
             messages=[
                 # {"role": "system", "content": "Prompt: Interpret the stream of letters and numbers as a grammatically correct sentence. Take into account possible typos. If the input is just one number, treat each digit as an individual number. Respond only with the sentence."},
                 {"role": "system", "content": "Prompt: Take the input number and return each digit as an individual number from 0-9. For example, '1234' should be '1 2 3 4'."},
-                {"role": "user", "content": "1324401956."}
+                {"role": "user", "content": message}
             ]
             )
         chat_response = completion.choices[0].message.content

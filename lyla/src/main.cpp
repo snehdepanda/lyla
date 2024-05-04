@@ -38,7 +38,8 @@
 
 
 /* Private variables ------------------------------------------------------- */
-const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
+const char* url = "10.105.100.183";  // Replace with your WebSocket server URL
+// const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
 const uint16_t port = 8888;
 const char* endpoint = "/websocket_esp32";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
@@ -54,11 +55,22 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
 
 /*Wifi definitions*/
-const char* ssid = "2146 Asbury";
-const char* pass = "NanoGold2146";
+#define CAMPUS
+#if defined(CAMPUS)
+#define SSID        "Device-Northwestern"
+#elif defined(ASBURY)
+#define SSID        "2146 Asbury"
+#define PASSWORD    "NanoGold2146"
+#else
+#error "WiFi not selected"
+#endif
+
+// const char* ssid = "2146 Asbury";
+// const char* pass = "NanoGold2146";
+
 
 const uint8_t num_chars = 10;
-uint8_t tokens[num_chars];
+char tokens[num_chars];
 static uint8_t ind = 0;
 
 
@@ -72,7 +84,7 @@ void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
-    // Serial.println(WiFi.macAddress()); // E4:65:B8:6F:4C:88
+    Serial.println(WiFi.macAddress()); // E4:65:B8:6F:4C:88
 
     Serial.println("Edge Impulse Inferencing Demo");
     if (ei_camera_init() == false) {
@@ -84,7 +96,7 @@ void setup()
 
     // Connect to WiFi
     WiFi.mode(WIFI_STA);
-	WiFi.begin(ssid, pass);
+	WiFi.begin(SSID);
 	
 	/* In case you want to use eduroam*/
     // Serial.println("Connecting to WPA2 Enterprise network");
@@ -193,7 +205,7 @@ void loop()
 #endif
     if (ind == 10) {
         ind = 0;
-        client.sendTXT(tokens, 10);
+        client.sendTXT(tokens, num_chars);
     }
     free(snapshot_buf);
     // ei_sleep(5);
