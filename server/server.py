@@ -33,14 +33,18 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
         print("ESP32 WebSocket opened")
         self.api_caller = Caller()
 
+    # def on_message(self, message):
+
+    #     print("Received JPEG image data")
+    #     print(message[:10])
+    #     update_all_clients(message, bin=False)
+    #     # self.api_caller.query(message)
+
     def on_message(self, message):
         self.write_message("ESP32: " + message)
         print("Received message: {}".format(message))
         update_all_clients(message)
 
-        # print("Received base 64 image data")
-        # update_all_clients(message, bin=False)
-        self.api_caller.query(message)
 
     def on_close(self):
         print("ESP32 WebSocket closed")
@@ -65,6 +69,8 @@ def update_all_clients(message, bin=False):
 if __name__ == "__main__":
     app = make_app()
     app.listen(8888)
-    print("Server is running at http://10.105.100.183:8888")
-    # print("Server is running at http://192.168.4.82:8888")
+    print("Server is running at http://10.105.100.183:8888")      # eduroam
+    # print("Server is running at http://172.20.20.20:8888")          # 828
+    # print("Server is running at http://3.144.73.255:8888")        # aws
+    # print("Server is running at http://192.168.4.82:8888")        # asbury
     tornado.ioloop.IOLoop.current().start()

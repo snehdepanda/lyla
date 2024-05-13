@@ -25,8 +25,12 @@
 #include <WebSocketsClient.h>
 #include <sign-language_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
-#include <WiFi.h>
-// #include <WiFiManager.h>
+// #include <WiFi.h>
+
+// Collection server code
+#include <eloquent_esp32cam.h>
+#include <eloquent_esp32cam/viz/image_collection.h>
+
 #include "esp_camera.h"
 
 #include "ei_utils.h"
@@ -38,10 +42,11 @@
 
 
 /* Private variables ------------------------------------------------------- */
-const char* url = "10.105.100.183";  // Replace with your WebSocket server URL
-// const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
-const uint16_t port = 8888;
-const char* endpoint = "/websocket_esp32";
+// // const char* url = "10.105.252.142";  // sneh eduroam
+// const char* url = "10.105.100.183";  // eduroam
+// // const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
+// const uint16_t port = 8888;
+// const char* endpoint = "/websocket_esp32";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 static bool is_initialised = false;
 uint8_t *snapshot_buf; //points to the output of the capture
@@ -54,22 +59,19 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
 
-/*Wifi definitions*/
-#define CAMPUS
-#if defined(CAMPUS)
-#define SSID        "Device-Northwestern"
-#elif defined(ASBURY)
-#define SSID        "2146 Asbury"
-#define PASSWORD    "NanoGold2146"
-#else
-#error "WiFi not selected"
-#endif
-
-// const char* ssid = "2146 Asbury";
-// const char* pass = "NanoGold2146";
+// /*Wifi definitions*/
+// #define CAMPUS
+// #if defined(CAMPUS)
+// #define SSID        "Device-Northwestern"
+// #elif defined(ASBURY)
+// #define SSID        "2146 Asbury"
+// #define PASSWORD    "NanoGold2146"
+// #else
+// #error "WiFi not selected"
+// #endif
 
 
-const uint8_t num_chars = 10;
+const uint8_t num_chars = 5;
 char tokens[num_chars];
 static uint8_t ind = 0;
 
@@ -84,7 +86,7 @@ void setup()
 {
     // put your setup code here, to run once:
     Serial.begin(115200);
-    Serial.println(WiFi.macAddress()); // E4:65:B8:6F:4C:88
+    Serial.println(WiFi.macAddress()); 
 
     Serial.println("Edge Impulse Inferencing Demo");
     if (ei_camera_init() == false) {
@@ -94,35 +96,34 @@ void setup()
         ei_printf("Camera initialized\r\n");
     }
 
-    // Connect to WiFi
-    WiFi.mode(WIFI_STA);
-	WiFi.begin(SSID);
+    // // Connect to WiFi
+    // WiFi.mode(WIFI_STA);
+	// WiFi.begin(SSID);
 	
-	/* In case you want to use eduroam*/
-    // Serial.println("Connecting to WPA2 Enterprise network");
-    // esp_wifi_sta_wpa2_ent_set_identity((uint8_t*) eap_anonymous_id, strlen(eap_anonymous_id));
-    // esp_wifi_sta_wpa2_ent_set_username((uint8_t*) eap_id, strlen(eap_id));
-    // esp_wifi_sta_wpa2_ent_set_password((uint8_t*) eap_password, strlen(eap_password));
-    // esp_wifi_sta_wpa2_ent_enable();
 
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Connecting to WiFi...");
-    }
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    // WiFiManager wifiManager;
-    // wifiManager.autoConnect("AutoConnectAP1"); 
-    // Serial.println("Connected to WiFi!");
+    // while (WiFi.status() != WL_CONNECTED) {
+    //     delay(1000);
+    //     Serial.println("Connecting to WiFi...");
+    // }
+    // Serial.print("IP address: ");
+    // Serial.println(WiFi.localIP());
+    // // WiFiManager wifiManager;
+    // // wifiManager.autoConnect("AutoConnectAP1"); 
+    // // Serial.println("Connected to WiFi!");
 
 
-    // Connect to WebSocket server
-    client.begin(url, port, endpoint);
-    client.onEvent(webSocketEvent);
-    client.setReconnectInterval(5000);
+    // // // Connect to WebSocket server
+    // // client.begin(url, port, endpoint);
+    // // client.onEvent(webSocketEvent);
+    // // client.setReconnectInterval(3000);
 
-    ei_printf("\nStarting continious inference in 2 seconds...\n");
-    ei_sleep(2000);
+    // // init face detection http server
+    // while (!eloq::viz::collectionServer.begin().isOk())
+    //     Serial.println(eloq::viz::collectionServer.exception.toString());
+
+    // // ei_printf("\nStarting continious inference in 2 seconds...\n");
+    // Serial.println(eloq::viz::collectionServer.address());
+    // ei_sleep(2000);
 
 
 }
@@ -134,88 +135,93 @@ void setup()
 */
 void loop()
 {
+    Serial.println("hello world");
+    delay(500);
     // client.sendTXT("hello");
-    client.loop();
+    // client.loop();
 
-    // // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
-    // if (ei_sleep(5) != EI_IMPULSE_OK) {
-    //     return;
-    // }
+//     // // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
+//     // if (ei_sleep(5) != EI_IMPULSE_OK) {
+//     //     return;
+//     // }
 
-    snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
+//     snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
 
-    // check if allocation was successful
-    if(snapshot_buf == nullptr) {
-        ei_printf("ERR: Failed to allocate snapshot buffer!\n");
-        return;
-    }
+//     // check if allocation was successful
+//     if(snapshot_buf == nullptr) {
+//         ei_printf("ERR: Failed to allocate snapshot buffer!\n");
+//         return;
+//     }
 
-    ei::signal_t signal;
-    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-    signal.get_data = &ei_camera_get_data;
+//     ei::signal_t signal;
+//     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+//     signal.get_data = &ei_camera_get_data;
+//     client.loop();
+//     if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
+//         ei_printf("Failed to capture image\r\n");
+//         free(snapshot_buf);
+//         return;
+//     }
+//     ei_printf("input width: %i, input height: %i", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+//     client.loop();
 
-    if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
-        ei_printf("Failed to capture image\r\n");
-        free(snapshot_buf);
-        return;
-    }
-    ei_printf("input width: %i, input height: %i", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
-    client.loop();
+//     // Run the classifier
+//     ei_impulse_result_t result = { 0 };
 
-    // Run the classifier
-    ei_impulse_result_t result = { 0 };
+//     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+//     if (err != EI_IMPULSE_OK) {
+//         ei_printf("ERR: Failed to run classifier (%d)\n", err);
+//         return;
+//     }
 
-    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-    if (err != EI_IMPULSE_OK) {
-        ei_printf("ERR: Failed to run classifier (%d)\n", err);
-        return;
-    }
+//     // print the predictions
+//     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+//                 result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
-    // print the predictions
-    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-                result.timing.dsp, result.timing.classification, result.timing.anomaly);
+// #if EI_CLASSIFIER_OBJECT_DETECTION == 1
+//     bool bb_found = result.bounding_boxes[0].value > 0;
+//     for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
+//         auto bb = result.bounding_boxes[ix];
+//         if (bb.value == 0) {
+//             continue;
+//         }
+//         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+//         if (ind < num_chars) {
+//             tokens[ind] = bb.label[0];
+//             ind++;
+//             ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
+//             break;
+//         }
+//     }
+//     if (!bb_found) {
+//         ei_printf("    No objects found\n");
+//     }
+// #else
+//     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+//         ei_printf("    %s: %.5f\n", result.classification[ix].label,
+//                                     result.classification[ix].value);
+//     }
+// #endif
 
-#if EI_CLASSIFIER_OBJECT_DETECTION == 1
-    bool bb_found = result.bounding_boxes[0].value > 0;
-    for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
-        auto bb = result.bounding_boxes[ix];
-        if (bb.value == 0) {
-            continue;
-        }
-        ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-        if (ind < num_chars) {
-            tokens[ind] = bb.label[0];
-            ind++;
-            ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
-            break;
-        }
-    }
-    if (!bb_found) {
-        ei_printf("    No objects found\n");
-    }
-#else
-    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-        ei_printf("    %s: %.5f\n", result.classification[ix].label,
-                                    result.classification[ix].value);
-    }
-#endif
-
-#if EI_CLASSIFIER_HAS_ANOMALY == 1
-        ei_printf("    anomaly score: %.3f\n", result.anomaly);
-#endif
-    if (ind == 10) {
-        ind = 0;
-        client.sendTXT(tokens, num_chars);
-    }
-    free(snapshot_buf);
-    // ei_sleep(5);
+// #if EI_CLASSIFIER_HAS_ANOMALY == 1
+//         ei_printf("    anomaly score: %.3f\n", result.anomaly);
+// #endif
+//     client.loop();
+//     if (ind == num_chars) {
+//         ind = 0;
+//         // Serial.println("Sent tokens, %s", tokens);
+//         // Serial.write(tokens);
+//         client.sendTXT(tokens, num_chars);
+//     }
+//     free(snapshot_buf);
+//     // ei_sleep(5);
 
 }
 
-void send_image_to_server(char *img) {
-    // send bitmap image to server
+void send_image_to_server(camera_fb_t *fb) {
+    // send jpeg image to server
     // client.sendBIN(img, sizeof(img));
-    client.sendTXT(img, sizeof(img));
+    client.sendTXT((const char*)fb->buf, fb->len);
 }
 
 /**
@@ -304,9 +310,9 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
         ei_printf("Camera capture failed\n");
         return false;
     }
-
-    // send_image_to_server(fb);
     // client.loop();
+    // send_image_to_server(fb);
+    client.loop();
 
     bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
 
