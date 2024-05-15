@@ -25,28 +25,20 @@
 #include <WebSocketsClient.h>
 #include <sign-language_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
-// #include <WiFi.h>
-
-// Collection server code
-#include <eloquent_esp32cam.h>
-#include <eloquent_esp32cam/viz/image_collection.h>
-
+#include <WiFi.h>
 #include "esp_camera.h"
+#include <LiquidCrystal_I2C.h>
 
 #include "ei_utils.h"
 #include "website.h"
 
-// Select camera model - find more camera models in camera_pins.h file here
-// https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Camera/CameraWebServer/camera_pins.h
-
-
 
 /* Private variables ------------------------------------------------------- */
-// // const char* url = "10.105.252.142";  // sneh eduroam
-// const char* url = "10.105.100.183";  // eduroam
-// // const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
-// const uint16_t port = 8888;
-// const char* endpoint = "/websocket_esp32";
+// const char* url = "10.105.252.142";  // sneh eduroam
+const char* url = "10.105.100.183";  // eduroam
+// const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
+const uint16_t port = 8888;
+const char* endpoint = "/websocket_esp32";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 static bool is_initialised = false;
 uint8_t *snapshot_buf; //points to the output of the capture
@@ -60,23 +52,26 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
 
 // /*Wifi definitions*/
-// #define CAMPUS
-// #if defined(CAMPUS)
-// #define SSID        "Device-Northwestern"
-// #elif defined(ASBURY)
-// #define SSID        "2146 Asbury"
-// #define PASSWORD    "NanoGold2146"
-// #else
-// #error "WiFi not selected"
-// #endif
+#define CAMPUS
+#if defined(CAMPUS)
+#define SSID        "Device-Northwestern"
+#elif defined(ASBURY)
+#define SSID        "2146 Asbury"
+#define PASSWORD    "NanoGold2146"
+#else
+#error "WiFi not selected"
+#endif
 
 
 const uint8_t num_chars = 5;
 char tokens[num_chars];
 static uint8_t ind = 0;
+static uint8_t lcdColumns = 16;
+static uint8_t lcdRows = 2;
 
 
 WebSocketsClient client;
+LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
 
 
 /**
@@ -84,46 +79,46 @@ WebSocketsClient client;
 */
 void setup()
 {
-    // put your setup code here, to run once:
     Serial.begin(115200);
-    Serial.println(WiFi.macAddress()); 
+    // Serial.println(WiFi.macAddress()); 
 
     Serial.println("Edge Impulse Inferencing Demo");
-    if (ei_camera_init() == false) {
+    delay(2000);
+    while (ei_camera_init() == false) {
         ei_printf("Failed to initialize Camera!\r\n");
+        delay(500);
     }
-    else {
-        ei_printf("Camera initialized\r\n");
-    }
+    ei_printf("Camera initialized\r\n");
 
-    // // Connect to WiFi
-    // WiFi.mode(WIFI_STA);
-	// WiFi.begin(SSID);
+    Wire.setPins(41, 42);
+    // initialize LCD
+    lcd.init();
+    // turn on LCD backlight                      
+    lcd.backlight();
+    lcd.clear();
+    Serial.println("LCD screen initialized!");
+
+    // Connect to WiFi
+    WiFi.mode(WIFI_STA);
+	WiFi.begin(SSID);
 	
 
-    // while (WiFi.status() != WL_CONNECTED) {
-    //     delay(1000);
-    //     Serial.println("Connecting to WiFi...");
-    // }
-    // Serial.print("IP address: ");
-    // Serial.println(WiFi.localIP());
-    // // WiFiManager wifiManager;
-    // // wifiManager.autoConnect("AutoConnectAP1"); 
-    // // Serial.println("Connected to WiFi!");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+
+    // Connect to WebSocket server
+    client.begin(url, port, endpoint);
+    client.onEvent(webSocketEvent);
+    client.setReconnectInterval(5000);
 
 
-    // // // Connect to WebSocket server
-    // // client.begin(url, port, endpoint);
-    // // client.onEvent(webSocketEvent);
-    // // client.setReconnectInterval(3000);
-
-    // // init face detection http server
-    // while (!eloq::viz::collectionServer.begin().isOk())
-    //     Serial.println(eloq::viz::collectionServer.exception.toString());
-
-    // // ei_printf("\nStarting continious inference in 2 seconds...\n");
+    ei_printf("\nStarting continious inference in 2 seconds...\n");
     // Serial.println(eloq::viz::collectionServer.address());
-    // ei_sleep(2000);
+    ei_sleep(2000);
 
 
 }
@@ -135,86 +130,87 @@ void setup()
 */
 void loop()
 {
-    Serial.println("hello world");
-    delay(500);
+    
     // client.sendTXT("hello");
-    // client.loop();
+    client.loop();
 
-//     // // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
-//     // if (ei_sleep(5) != EI_IMPULSE_OK) {
-//     //     return;
-//     // }
+    // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
+    if (ei_sleep(5) != EI_IMPULSE_OK) {
+        return;
+    }
 
-//     snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
+    snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
 
-//     // check if allocation was successful
-//     if(snapshot_buf == nullptr) {
-//         ei_printf("ERR: Failed to allocate snapshot buffer!\n");
-//         return;
-//     }
+    // check if allocation was successful
+    if(snapshot_buf == nullptr) {
+        ei_printf("ERR: Failed to allocate snapshot buffer!\n");
+        return;
+    }
 
-//     ei::signal_t signal;
-//     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-//     signal.get_data = &ei_camera_get_data;
-//     client.loop();
-//     if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
-//         ei_printf("Failed to capture image\r\n");
-//         free(snapshot_buf);
-//         return;
-//     }
-//     ei_printf("input width: %i, input height: %i", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
-//     client.loop();
+    ei::signal_t signal;
+    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+    signal.get_data = &ei_camera_get_data;
+    client.loop();
+    if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
+        ei_printf("Failed to capture image\r\n");
+        free(snapshot_buf);
+        return;
+    }
+    ei_printf("input width: %i, input height: %i", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+    client.loop();
 
-//     // Run the classifier
-//     ei_impulse_result_t result = { 0 };
+    // Run the classifier
+    ei_impulse_result_t result = { 0 };
 
-//     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-//     if (err != EI_IMPULSE_OK) {
-//         ei_printf("ERR: Failed to run classifier (%d)\n", err);
-//         return;
-//     }
+    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+    if (err != EI_IMPULSE_OK) {
+        ei_printf("ERR: Failed to run classifier (%d)\n", err);
+        return;
+    }
 
-//     // print the predictions
-//     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-//                 result.timing.dsp, result.timing.classification, result.timing.anomaly);
+    // print the predictions
+    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+                result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
-// #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-//     bool bb_found = result.bounding_boxes[0].value > 0;
-//     for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
-//         auto bb = result.bounding_boxes[ix];
-//         if (bb.value == 0) {
-//             continue;
-//         }
-//         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-//         if (ind < num_chars) {
-//             tokens[ind] = bb.label[0];
-//             ind++;
-//             ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
-//             break;
-//         }
-//     }
-//     if (!bb_found) {
-//         ei_printf("    No objects found\n");
-//     }
-// #else
-//     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-//         ei_printf("    %s: %.5f\n", result.classification[ix].label,
-//                                     result.classification[ix].value);
-//     }
-// #endif
+#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+    bool bb_found = result.bounding_boxes[0].value > 0;
+    for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
+        auto bb = result.bounding_boxes[ix];
+        if (bb.value == 0) {
+            continue;
+        }
+        ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+        if (ind < num_chars) {
+            tokens[ind] = bb.label[0];
+            ind++;
+            ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
+            break;
+        }
+    }
+    if (!bb_found) {
+        ei_printf("    No objects found\n");
+    }
+#else
+    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+        ei_printf("    %s: %.5f\n", result.classification[ix].label,
+                                    result.classification[ix].value);
+    }
+#endif
 
-// #if EI_CLASSIFIER_HAS_ANOMALY == 1
-//         ei_printf("    anomaly score: %.3f\n", result.anomaly);
-// #endif
-//     client.loop();
-//     if (ind == num_chars) {
-//         ind = 0;
-//         // Serial.println("Sent tokens, %s", tokens);
-//         // Serial.write(tokens);
-//         client.sendTXT(tokens, num_chars);
-//     }
-//     free(snapshot_buf);
-//     // ei_sleep(5);
+#if EI_CLASSIFIER_HAS_ANOMALY == 1
+        ei_printf("    anomaly score: %.3f\n", result.anomaly);
+#endif
+    client.loop();
+    if (ind == num_chars) {
+        ind = 0;
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print(tokens);
+        // Serial.write(tokens);
+        client.sendTXT(tokens, num_chars);
+    }
+    free(snapshot_buf);
+    // ei_sleep(5);
 
 }
 
@@ -252,15 +248,6 @@ bool ei_camera_init(void) {
       s->set_brightness(s, 1); // up the brightness just a bit
       s->set_saturation(s, 0); // lower the saturation
     }
-
-#if defined(CAMERA_MODEL_M5STACK_WIDE)
-    s->set_vflip(s, 1);
-    s->set_hmirror(s, 1);
-#elif defined(CAMERA_MODEL_ESP_EYE)
-    s->set_vflip(s, 1);
-    s->set_hmirror(s, 1);
-    s->set_awb_gain(s, 1);
-#endif
 
     is_initialised = true;
     return true;
@@ -368,3 +355,36 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
 #endif
 
 
+// #include <Arduino.h>
+
+// // set the LCD number of columns and rows
+// int lcdColumns = 16;
+// int lcdRows = 2;
+
+// // set LCD address, number of columns and rows
+// // if you don't know your display address, run an I2C scanner sketch
+// LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
+
+// void setup(){
+//   // sda, scl
+//   Wire.setPins(41, 42);
+//   // initialize LCD
+//   lcd.init();
+//   // turn on LCD backlight                      
+//   lcd.backlight();
+// }
+
+// void loop(){
+//   // set cursor to first column, first row
+//   lcd.setCursor(0, 0);
+//   // print message
+//   lcd.print("Hello, World!");
+//   delay(1000);
+//   // clears the display to print new message
+//   lcd.clear();
+//   // set cursor to first column, second row
+//   lcd.setCursor(0,1);
+//   lcd.print("Hello, World!");
+//   delay(1000);
+//   lcd.clear(); 
+// }
