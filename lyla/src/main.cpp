@@ -39,9 +39,9 @@ void StatusCallback(void *cbData, int code, const char *string)
 // Tornado server URL
 const char *URL="http://10.105.252.142:8888/mp3";
 // Websocket connection variables
-const char* url = "10.105.252.142";  // Replace with your WebSocket server URL
-const uint16_t port = 8888;
-const char* endpoint = "/websocket_esp32";
+// const char* url = "10.105.252.142";  // Replace with your WebSocket server URL
+// const uint16_t port = 8888;
+// const char* endpoint = "/websocket_esp32";
 
 WebSocketsClient client;
 
@@ -51,10 +51,10 @@ AudioFileSourceICYStream *file;
 AudioFileSourceBuffer *buff;
 AudioOutputI2S *out;
 
-bool setup_done = false;
+// bool setup_done = false;
 
-// Event flags
-bool sign_buffer_received = false;
+// // Event flags
+// bool sign_buffer_received = false;
 // bool speaker_setup = false; 
 
 void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
@@ -67,7 +67,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
             break;
         case WStype_TEXT:
             Serial.printf("[WebSocket] Message received: %s\n", payload);
-            sign_buffer_received = true;
+            // sign_buffer_received = true;
             break;
         case WStype_BIN:
             Serial.printf("[WebSocket] Binary data received\n");
@@ -84,31 +84,30 @@ void setup()
   wifiManager.autoConnect("AutoConnectAP"); 
   Serial.println("Connected to WiFi!");
 
-//   // Connect to WebSocket server
-  client.begin(url, port, endpoint);
-  client.onEvent(webSocketEvent);
-  client.setReconnectInterval(5000);
-}
-
-
-void loop()
- {
-  while (!sign_buffer_received) {
-    client.loop();
-  }
-
-  if (!setup_done) {
-  audioLogger = &Serial;
+// //   // Connect to WebSocket server
+//   client.begin(url, port, endpoint);
+//   client.onEvent(webSocketEvent);
+//   client.setReconnectInterval(5000);
+    audioLogger = &Serial;
     file = new AudioFileSourceICYStream(URL);
     file->RegisterMetadataCB(MDCallback, (void*)"ICY");
     buff = new AudioFileSourceBuffer(file, 2048);
     buff->RegisterStatusCB(StatusCallback, (void*)"buffer");
     out = new AudioOutputI2S();
+    out -> SetGain(2);
     mp3 = new AudioGeneratorMP3();
     mp3->RegisterStatusCB(StatusCallback, (void*)"mp3");
     mp3->begin(buff, out);
-    setup_done = true;
-  }
+  
+}
+
+
+void loop()
+ {
+//   while (!sign_buffer_received) {
+//     client.loop();
+//   }
+
   static int lastms = 0;
   if (mp3->isRunning()) {
     if (millis()-lastms > 1000) {
@@ -121,4 +120,4 @@ void loop()
     Serial.printf("MP3 done\n");
     delay(1000);
   }
-}
+  }
