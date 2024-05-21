@@ -25,7 +25,9 @@
 #include "edge-impulse-sdk/dsp/image/image.hpp"
 #include <WiFi.h>
 #include "esp_camera.h"
-#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 #include "ei_utils.h"
 #include "website.h"
@@ -69,7 +71,7 @@ static uint8_t lcdRows = 2;
 
 
 WebSocketsClient client;
-LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
+Adafruit_SSD1306 display(128, 32, &Wire, -1);
 
 
 /**
@@ -78,32 +80,33 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 void setup()
 {
     Serial.begin(115200);
-    // Serial.println(WiFi.macAddress()); 
+    Serial.println(WiFi.macAddress()); 
 
     delay(2000);
-    while (ei_camera_init() == false) {
-        ei_printf("Failed to initialize Camera!\r\n");
-        delay(500);
-    }
+    // while (ei_camera_init() == false) {
+    //     ei_printf("Failed to initialize Camera!\r\n");
+    //     delay(500);
+    // }
+    ei_camera_init();
     ei_printf("Camera initialized\r\n");
 
-    Wire.setPins(41, 42);
-    // initialize LCD
-    lcd.init();
-    // turn on LCD backlight                      
-    lcd.backlight();
-    lcd.clear();
+    // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+    Wire.setPins(41,42);
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for(;;); // Don't proceed, loop forever
+    }
     Serial.println("LCD screen initialized!");
 
     // Connect to WiFi
     WiFi.mode(WIFI_STA);
 	WiFi.begin(SSID);
 	
-
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
         Serial.println("Connecting to WiFi...");
     }
+    Serial.println("");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
@@ -127,6 +130,14 @@ void setup()
 */
 void loop()
 {
+    display.clearDisplay();
+    delay(500);
+    display.setCursor(0,0);
+    display.setTextSize(1);
+    display.setTextWrap(true);
+    display.setTextColor(WHITE);
+    display.print("12345678910111213141516");
+    display.display();
     
     // client.sendTXT("hello");
     client.loop();
@@ -200,10 +211,10 @@ void loop()
     client.loop();
     if (ind == num_chars) {
         ind = 0;
-        lcd.clear();
-        lcd.setCursor(0,0);
-        lcd.print(tokens);
-        // Serial.write(tokens);
+        display.clearDisplay();
+        display.setCursor(0,0);
+        display.setTextSize(1);
+        display.print(tokens);
         client.sendTXT(tokens, num_chars);
     }
     free(snapshot_buf);
@@ -226,17 +237,18 @@ bool ei_camera_init(void) {
 
     if (is_initialised) return true;
 
-#if defined(CAMERA_MODEL_ESP_EYE)
-  pinMode(13, INPUT_PULLUP);
-  pinMode(14, INPUT_PULLUP);
-#endif
-
     //initialize the camera
-    esp_err_t err = esp_camera_init(&camera_config);
-    if (err != ESP_OK) {
-      Serial.printf("Camera init failed with error 0x%x\n", err);
-      return false;
+    while (true) {
+        esp_err_t err = esp_camera_init(&camera_config);
+        if (err != ESP_OK) Serial.printf("Camera init failed with error 0x%x\n", err);
+        else break;
+        delay(1000);
     }
+    // esp_err_t err = esp_camera_init(&camera_config);
+    // if (err != ESP_OK) {
+    //   Serial.printf("Camera init failed with error 0x%x\n", err);
+    //   return false;
+    // }
 
     sensor_t * s = esp_camera_sensor_get();
     // initial sensors are flipped vertically and colors are a bit saturated
@@ -351,36 +363,79 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
 #endif
 
 
+
 // #include <Arduino.h>
+// /**************************************************************************
+//  This is an example for our Monochrome OLEDs based on SSD1306 drivers
 
-// // set the LCD number of columns and rows
-// int lcdColumns = 16;
-// int lcdRows = 2;
+//  Pick one up today in the adafruit shop!
+//  ------> http://www.adafruit.com/category/63_98
 
-// // set LCD address, number of columns and rows
-// // if you don't know your display address, run an I2C scanner sketch
-// LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
+//  This example is for a 128x32 pixel display using I2C to communicate
+//  3 pins are required to interface (two I2C and one reset).
 
-// void setup(){
-//   // sda, scl
-//   Wire.setPins(41, 42);
-//   // initialize LCD
-//   lcd.init();
-//   // turn on LCD backlight                      
-//   lcd.backlight();
+//  Adafruit invests time and resources providing this open
+//  source code, please support Adafruit and open-source
+//  hardware by purchasing products from Adafruit!
+
+//  Written by Limor Fried/Ladyada for Adafruit Industries,
+//  with contributions from the open source community.
+//  BSD license, check license.txt for more information
+//  All text above, and the splash screen below must be
+//  included in any redistribution.
+//  **************************************************************************/
+
+// #include <Wire.h>
+// #include <Adafruit_GFX.h>
+// #include <Adafruit_SSD1306.h>
+
+// #define SCREEN_WIDTH 128 // OLED display width, in pixels
+// #define SCREEN_HEIGHT 32 // OLED display height, in pixels
+
+// // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+// // The pins for I2C are defined by the Wire-library. 
+// // On an arduino UNO:       A4(SDA), A5(SCL)
+// // On an arduino MEGA 2560: 20(SDA), 21(SCL)
+// // On an arduino LEONARDO:   2(SDA),  3(SCL), ...
+// #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+// #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
+
+// Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+
+// char message[]="297M LstWyPt, 345M StPt, rec#89";
+// int x, minX;
+
+// void setup() {
+//   Serial.begin(115200);
+//   Wire.setPins(41,42);
+
+//   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+//   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+//     Serial.println(F("SSD1306 allocation failed"));
+//     for(;;); // Don't proceed, loop forever
+//   }
+
+//   // Show initial display buffer contents on the screen --
+//   // the library initializes this with an Adafruit splash screen.
+//   display.setTextColor(WHITE);
+//   display.setTextWrap(false);
+//   x = display.width();
+//   minX = -6 * strlen(message) * 2;  // 12 = 6 pixels/character * text size * additional
 // }
 
-// void loop(){
-//   // set cursor to first column, first row
-//   lcd.setCursor(0, 0);
-//   // print message
-//   lcd.print("Hello, World!");
-//   delay(1000);
-//   // clears the display to print new message
-//   lcd.clear();
-//   // set cursor to first column, second row
-//   lcd.setCursor(0,1);
-//   lcd.print("Hello, World!");
-//   delay(1000);
-//   lcd.clear(); 
+// void loop() {
+//     display.clearDisplay();
+//     display.setCursor(0,0);
+//     display.setTextSize(1);
+//     display.print("Sat:13  03:56:32  67%");// GPS # Satellites, Time, % Batt chg
+//     display.setTextSize(1);
+//     display.setCursor(x,10);
+//     display.print(message);
+//     display.setCursor(x,20);
+//     display.setTextSize(1);
+//     display.print("Press #1 New StPt, 2 RecWayPt, Cur 32.567, -102.456");
+//     display.display();
+//     x=x-1; // scroll speed, make more positive to slow down the scroll
+//     if(x < minX) x= display.width();
 // }
