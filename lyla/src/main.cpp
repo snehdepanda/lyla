@@ -2,8 +2,6 @@
 // Pseudocode (Assume device always on, so no wake word)
 // Initialize I2S
 // Initialize Camera
-// Initialize Microphone
-// Initialize Speaker
 // Initialize Wifi
 // Set threshold for confidence
 // initialize character array
@@ -82,7 +80,6 @@ void setup()
     Serial.begin(115200);
     // Serial.println(WiFi.macAddress()); 
 
-    Serial.println("Edge Impulse Inferencing Demo");
     delay(2000);
     while (ei_camera_init() == false) {
         ei_printf("Failed to initialize Camera!\r\n");
@@ -113,12 +110,12 @@ void setup()
     // Connect to WebSocket server
     client.begin(url, port, endpoint);
     client.onEvent(webSocketEvent);
-    client.setReconnectInterval(5000);
+    client.setReconnectInterval(2000);
 
 
     ei_printf("\nStarting continious inference in 2 seconds...\n");
     // Serial.println(eloq::viz::collectionServer.address());
-    ei_sleep(2000);
+    ei_sleep(1000);
 
 
 }
@@ -297,8 +294,7 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
         ei_printf("Camera capture failed\n");
         return false;
     }
-    // client.loop();
-    // send_image_to_server(fb);
+
     client.loop();
 
     bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
