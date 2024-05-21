@@ -4,10 +4,12 @@ import tornado.websocket
 from api_utils import *
 
 website_clients = []
+image_num = 0
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        self.render("index.html")
+        # self.render("index.html")
+        self.render("webcam.html")
 
 # handler for user
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
@@ -33,17 +35,37 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
         print("ESP32 WebSocket opened")
         self.api_caller = Caller()
 
-    # def on_message(self, message):
-
-    #     print("Received JPEG image data")
-    #     print(message[:10])
-    #     update_all_clients(message, bin=False)
-    #     # self.api_caller.query(message)
-
     def on_message(self, message):
-        self.write_message("ESP32: " + message)
-        print("Received message: {}".format(message))
-        update_all_clients(message)
+        global image_num
+        print("Received JPEG image data {}".format(image_num))
+        if image_num <= 60:
+            self.save_image(message, image_num)
+        if image_num % 10 == 0:
+            update_all_clients(message, bin=True)
+        image_num += 1
+        # self.api_caller.query(message)
+
+    # def on_message(self, message):
+    #     self.write_message("ESP32: " + message)
+    #     print("Received message: {}".format(message))
+    #     update_all_clients(message)
+
+    def save_image(self, image_data, num):
+        # Specify the directory and filename to save the image
+        save_directory = 'y-lab'
+        filename = 'y-lab-{}.jpeg'.format(num)
+
+        # Ensure the directory exists
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+
+        # Construct the full path
+        file_path = os.path.join(save_directory, filename)
+
+        # Write the image data to a file
+        with open(file_path, 'wb') as f:
+            f.write(image_data)
+        print(f"Image saved to {file_path}")
 
 
     def on_close(self):
