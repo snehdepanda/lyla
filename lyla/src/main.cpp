@@ -1,30 +1,15 @@
-// /*
-// Pseudocode (Assume device always on, so no wake word)
-// Initialize I2S
-// Initialize Camera
-// Initialize Microphone
-// Initialize Speaker
-// Initialize Wifi
-// Set threshold for confidence
-// initialize character array
-// Sample continuously at a specified interval:
-//     capture image
-//     if image classification is over threshold:
-//         turn on led signalling letter is recognized
-//         add classified character to character array
-//         turn off led
-//         delay 0.5s
-// break after specified condition
-// send character array to amazon aws
-// */
-
+/*
+Purpose: Collects Images
+*/
 
 
 /* Includes ---------------------------------------------------------------- */
 #include <Arduino.h>
 #include <WebSocketsClient.h>
 #include <WiFi.h>
-#include "esp_camera.h"
+// #include <sign-language_inferencing.h>
+// #include "esp_camera.h"
+// #include "edge-impulse-sdk/dsp/image/image.hpp"
 
 #include "ei_utils.h"
 #include "website.h"
@@ -43,10 +28,10 @@ uint8_t *snapshot_buf; //points to the output of the capture
 
 /* Function definitions ------------------------------------------------------- */
 bool ei_camera_init(void);
-void ei_camera_deinit(void);
-bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) ;
+bool camera_capture(uint8_t *out_buf);
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
+// void classify_image();
 uint8_t count = 0;
 
 // /*Wifi definitions*/
@@ -89,6 +74,14 @@ void setup()
     }
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    Serial.print("Classifier input width: ");
+    Serial.println(EI_CLASSIFIER_INPUT_WIDTH);
+    Serial.print("Classifier input height: ");
+    Serial.println(EI_CLASSIFIER_INPUT_HEIGHT);
+    Serial.print("Classifier raw frame buffer cols: ");
+    Serial.println(EI_CAMERA_RAW_FRAME_BUFFER_COLS);
+    Serial.print("Classifier raw frame buffer rows: ");
+    Serial.println(EI_CAMERA_RAW_FRAME_BUFFER_ROWS);
 
     // Connect to WebSocket server
     client.begin(url, port, endpoint);
@@ -122,11 +115,12 @@ void loop()
     }
 
     client.loop();
-    if (ei_camera_capture((size_t)240, (size_t)240, snapshot_buf) == false) {
+    if (camera_capture(snapshot_buf) == false) {
         Serial.println("Failed to capture image\r\n");
         free(snapshot_buf);
-        return;
     }
+
+    // classify_image();
 
     free(snapshot_buf);
 
@@ -174,24 +168,6 @@ bool ei_camera_init(void) {
     return true;
 }
 
-/**
- * @brief      Stop streaming of sensor data
- */
-void ei_camera_deinit(void) {
-
-    //deinitialize the camera
-    esp_err_t err = esp_camera_deinit();
-
-    if (err != ESP_OK)
-    {
-        Serial.println("Camera deinit failed\n");
-        return;
-    }
-
-    is_initialised = false;
-    return;
-}
-
 
 /**
  * @brief      Capture, rescale and crop image
@@ -204,7 +180,7 @@ void ei_camera_deinit(void) {
  * @retval     false if not initialised, image captured, rescaled or cropped failed
  *
  */
-bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) {
+bool camera_capture(uint8_t *out_buf) {
     bool do_resize = false;
 
     if (!is_initialised) {
@@ -248,3 +224,45 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
     return 0;
 }
 
+// void classify_image() {
+//     ei::signal_t signal;
+//     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+//     signal.get_data = &ei_camera_get_data;
+
+//     // Run the classifier
+//     ei_impulse_result_t result = { 0 };
+//     client.loop();
+
+//     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+//     if (err != EI_IMPULSE_OK) {
+//         ei_printf("ERR: Failed to run classifier (%d)\n", err);
+//         return;
+//     }
+
+//     // print the predictions
+//     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+//                 result.timing.dsp, result.timing.classification, result.timing.anomaly);
+
+// #if EI_CLASSIFIER_OBJECT_DETECTION == 1
+//     bool bb_found = result.bounding_boxes[0].value > 0;
+//     for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
+//         auto bb = result.bounding_boxes[ix];
+//         if (bb.value == 0) {
+//             continue;
+//         }
+//         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+//     }
+//     if (!bb_found) {
+//         ei_printf("    No objects found\n");
+//     }
+// #else
+//     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+//         ei_printf("    %s: %.5f\n", result.classification[ix].label,
+//                                     result.classification[ix].value);
+//     }
+// #endif
+
+// #if EI_CLASSIFIER_HAS_ANOMALY == 1
+//         ei_printf("    anomaly score: %.3f\n", result.anomaly);
+// #endif
+// }
