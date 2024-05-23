@@ -2,6 +2,7 @@ import tornado.ioloop
 import tornado.web
 import tornado.websocket
 from api_utils import *
+import cv2 as cv
 
 website_clients = []
 
@@ -35,68 +36,72 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
         self.api_caller = Caller()
         self.type = 0
         self.img_num = 0
+        self.r = 240/96
+        self.dir = '../../datasets/test'
+        self.f_name = 'test-{}.jpeg'
 
     def on_message(self, message):
         # image
         if self.type == 0:
-            print(type(message))
-            print(len(message))
             if isinstance(message, str) or len(message) < 5:
                 pass
             else:
                 print("Received JPEG image data {}".format(self.img_num))
-                if self.img_num < 30:
-                    self.save_image(message, self.img_num)
-                if self.img_num % 5 == 0:
-                    update_all_clients(message, bin=True)
+                self.save_image(message)
+                # if self.img_num % 5 == 0:
+                #     update_all_clients(message, bin=True)
                 self.img_num += 1
+                update_all_clients(message, bin=True)
                 self.type = 1
         
         # 1: label or not found, 2: x, 3: y, 4: width, 5: height
         elif self.type == 1:
-            print("check label")
             if message == "reset":
+                print('reset')
                 self.type = 0
             else:
                 self.label = message
                 self.type = 2
         elif self.type == 2:
-            print("check x")
-            # print(list(message))
             self.x = list(message)[0]
             self.type = 3
         elif self.type == 3:
-            print("check y")
-            # print(list(message))
             self.y = list(message)[0]
             self.type = 4
         elif self.type == 4:
-            print("check width")
-            # print(list(message))
             self.width = list(message)[0]
             self.type = 5
         elif self.type == 5:
-            print("check height")
-            # print(list(message))
             self.height = list(message)[0]
-            update_all_clients('label: {}, x: {}, y: {}, width: {}, height: {}'.format(self.label, self.x, self.y, self.width, self.height))
             print('label: {}, x: {}, y: {}, width: {}, height: {}'.format(self.label, self.x, self.y, self.width, self.height))
+            f_path = os.path.join(self.dir, self.f_name.format(self.img_num-1))
+
+            img = cv.imread(f_path)
+            x, y, = int(self.x*self.r), int(self.y*self.r)
+            end_x, end_y = int(x + self.width*self.r), int(y + self.height*self.r)
+            print(x,y,end_x,end_y, self.r)
+            color = (255,0,0)
+            img = cv.rectangle(img, (x,y), (end_x,end_y), color, 2)
+            img = cv.putText(img, self.label, (x,y-5), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            cv.imwrite(f_path, img)
+            with open(f_path, 'rb') as file:
+                byte_array = file.read()
+            print(byte_array[:2], byte_array[-2:])
+            update_all_clients(byte_array, bin=True)
             self.type = 0
 
         # self.api_caller.query(message)
 
 
-    def save_image(self, image_data, num):
+    def save_image(self, image_data):
         # Specify the directory and filename to save the image
-        save_directory = '../../datasets/test'
-        filename = 'test-{}.jpeg'.format(num)
 
         # Ensure the directory exists
-        if not os.path.exists(save_directory):
-            os.makedirs(save_directory)
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
 
         # Construct the full path
-        file_path = os.path.join(save_directory, filename)
+        file_path = os.path.join(self.dir, self.f_name.format(self.img_num))
 
         # Write the image data to a file
         with open(file_path, 'wb') as f:

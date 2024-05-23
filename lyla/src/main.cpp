@@ -283,6 +283,9 @@ void classify_image() {
         client.sendBIN(msg, 1);
         *(uint32_t *) msg = bb.height;
         client.sendBIN(msg, 1);
+        client.loop();
+        delay(500);
+        client.loop();
 
         // tokens[ind] = bb.label[0];
         break;
