@@ -39,32 +39,46 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         # image
         if self.type == 0:
-            print("Received JPEG image data {}".format(self.img_num))
-            if self.img_num < 30:
-                self.save_image(message, self.img_num)
-            if self.img_num % 5 == 0:
-                update_all_clients(message, bin=True)
-            self.img_num += 1
-            self.type = 1
+            print(type(message))
+            print(len(message))
+            if isinstance(message, str) or len(message) < 5:
+                pass
+            else:
+                print("Received JPEG image data {}".format(self.img_num))
+                if self.img_num < 30:
+                    self.save_image(message, self.img_num)
+                if self.img_num % 5 == 0:
+                    update_all_clients(message, bin=True)
+                self.img_num += 1
+                self.type = 1
         
         # 1: label or not found, 2: x, 3: y, 4: width, 5: height
         elif self.type == 1:
+            print("check label")
             if message == "reset":
                 self.type = 0
             else:
                 self.label = message
                 self.type = 2
         elif self.type == 2:
-            self.x = message
+            print("check x")
+            # print(list(message))
+            self.x = list(message)[0]
             self.type = 3
         elif self.type == 3:
-            self.y = message
+            print("check y")
+            # print(list(message))
+            self.y = list(message)[0]
             self.type = 4
         elif self.type == 4:
-            self.width = message
+            print("check width")
+            # print(list(message))
+            self.width = list(message)[0]
             self.type = 5
         elif self.type == 5:
-            self.height = message
+            print("check height")
+            # print(list(message))
+            self.height = list(message)[0]
             update_all_clients('label: {}, x: {}, y: {}, width: {}, height: {}'.format(self.label, self.x, self.y, self.width, self.height))
             print('label: {}, x: {}, y: {}, width: {}, height: {}'.format(self.label, self.x, self.y, self.width, self.height))
             self.type = 0

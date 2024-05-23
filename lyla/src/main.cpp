@@ -270,10 +270,20 @@ void classify_image() {
         }
         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
         client.sendTXT(bb.label);
-        client.sendTXT(bb.x);
-        client.sendTXT(bb.y);
-        client.sendTXT(bb.width);
-        client.sendTXT(bb.height);
+        Serial.print(bb.x);
+        Serial.print(bb.y);
+        Serial.print(bb.width);
+        Serial.println(bb.height);
+        uint8_t msg[4];
+        *(uint32_t *) msg = bb.x;
+        client.sendBIN(msg, 1);
+        *(uint32_t *) msg = bb.y;
+        client.sendBIN(msg, 1);
+        *(uint32_t *) msg = bb.width;
+        client.sendBIN(msg, 1);
+        *(uint32_t *) msg = bb.height;
+        client.sendBIN(msg, 1);
+
         // tokens[ind] = bb.label[0];
         break;
     }
