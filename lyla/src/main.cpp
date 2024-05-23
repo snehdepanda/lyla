@@ -36,6 +36,7 @@ void IRAM_ATTR handleButtonPress() {
 void startAudioCollection() {
     if (recording) {
         Serial.println("Started Recording...");
+        digitalWrite(LED_PIN, HIGH);  // Turn on LED to indicate recording
 
         while (1) { 
             size_t bytes_read = mic_i2s_to_buffer(mic_read_buffer, buf_len);
@@ -56,6 +57,7 @@ void startAudioCollection() {
     } else {
         // Perform any needed tasks while not recording
         Serial.println("Not Recording...");
+        digitalWrite(LED_PIN, LOW);  // Turn off LED
         delay(100);
     }
 }
@@ -79,6 +81,7 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
 void setup() {
   Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
   setupI2Smic();
 
   WiFiManager wifiManager;
@@ -98,51 +101,7 @@ void loop() {
         startAudioCollection();
     } else {
         Serial.println("WebSocket not connected...");
+        digitalWrite(LED_PIN, LOW);  // Turn off LED
     }
-    // static bool lastRecordingState = false;
-    // if (recording) {
-    //     // // Function to read data from I2S and store in buffer
-    //     // // Add your code here to do something with the data, e.g., saving to an SD card
-
-    //     if (!lastRecordingState) {
-    //         Serial.println("Started Recording...");
-    //         lastRecordingState = true;
-    //     }
-
-    //     // sendControlSignal("Start");
-
-    //     // while (1) {
-    //     //     size_t bytes_read = mic_i2s_to_buffer(mic_read_buffer, buf_len);
-
-    //     //     if (WiFi.isConnected()) {
-    //     //         HTTPClient http;
-    //     //         http.begin(SERVER_URL);
-    //     //         http.addHeader("Content-Type", "application/octet-stream");
-    //     //         http.POST((uint8_t*)mic_read_buffer, bytes_read);
-    //     //         buf_counter++;
-    //     //         http.end();
-    //     //     }
-
-    //     //     if (buf_counter == 4) {
-    //     //         buf_counter = 0;
-    //     //         break;
-    //     //     }
-    //     // }
-
-    //     // // sendControlSignal("Stop");
-    //     // Serial.printf("Started Recording");
-    //     // size_t bytes_read = mic_i2s_to_buffer(mic_read_buffer, buf_len);
-    //     // delay(1000);
-
-    //     // recording = !recording; // Stop recording after one iteration
-    //     // lastRecordingState = true;
-    // } else {
-    //     // Perform any needed tasks while not recording
-    //     if (lastRecordingState) {
-    //         Serial.println("Stopped Recording...");
-    //         lastRecordingState = false;
-    //     }
-    //     delay(100);
-    // }
 }
 
