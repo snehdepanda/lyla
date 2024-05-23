@@ -1,5 +1,5 @@
 /*
-Purpose: Collects Images
+Purpose: Collects Images and classify them, and display on a website
 */
 
 
@@ -7,9 +7,9 @@ Purpose: Collects Images
 #include <Arduino.h>
 #include <WebSocketsClient.h>
 #include <WiFi.h>
-// #include <sign-language_inferencing.h>
-// #include "esp_camera.h"
-// #include "edge-impulse-sdk/dsp/image/image.hpp"
+#include <sign-language_inferencing.h>
+#include "esp_camera.h"
+#include "edge-impulse-sdk/dsp/image/image.hpp"
 
 #include "ei_utils.h"
 #include "website.h"
@@ -28,11 +28,10 @@ uint8_t *snapshot_buf; //points to the output of the capture
 
 /* Function definitions ------------------------------------------------------- */
 bool ei_camera_init(void);
-bool camera_capture(uint8_t *out_buf);
+bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
-// void classify_image();
-uint8_t count = 0;
+void classify_image();
 
 // /*Wifi definitions*/
 #define CAMPUS
@@ -88,8 +87,8 @@ void setup()
     client.onEvent(webSocketEvent);
     client.setReconnectInterval(1000);
 
-
-    delay(2000);
+    client.loop();
+    delay(1000);
 
 
 }
@@ -101,10 +100,7 @@ void setup()
 */
 void loop()
 {
-    
-    // client.sendTXT("hello");
     client.loop();
-
 
     snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
 
@@ -115,12 +111,14 @@ void loop()
     }
 
     client.loop();
-    if (camera_capture(snapshot_buf) == false) {
+    if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
         Serial.println("Failed to capture image\r\n");
         free(snapshot_buf);
+        return;
     }
+    client.loop();
 
-    // classify_image();
+    classify_image();
 
     free(snapshot_buf);
 
@@ -129,10 +127,8 @@ void loop()
 
 void send_image_to_server(camera_fb_t *fb) {
     // send jpeg image to server
-    // client.sendBIN(img, sizeof(img));
     client.sendBIN((const uint8_t*)fb->buf, fb->len);
     Serial.print("Sent image ");
-    Serial.println(count);
 }
 
 /**
@@ -180,7 +176,7 @@ bool ei_camera_init(void) {
  * @retval     false if not initialised, image captured, rescaled or cropped failed
  *
  */
-bool camera_capture(uint8_t *out_buf) {
+bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) {
     bool do_resize = false;
 
     if (!is_initialised) {
@@ -198,7 +194,28 @@ bool camera_capture(uint8_t *out_buf) {
     delay(40);
     send_image_to_server(fb);
     client.loop();
+    bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, snapshot_buf);
     esp_camera_fb_return(fb);
+
+    if(!converted){
+       ei_printf("Conversion failed\n");
+       return false;
+    }
+
+    if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS)
+        || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS)) {
+        do_resize = true;
+    }
+
+    if (do_resize) {
+        ei::image::processing::crop_and_interpolate_rgb888(
+        out_buf,
+        EI_CAMERA_RAW_FRAME_BUFFER_COLS,
+        EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+        out_buf,
+        img_width,
+        img_height);
+    }
 
     return true;
 }
@@ -224,45 +241,54 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
     return 0;
 }
 
-// void classify_image() {
-//     ei::signal_t signal;
-//     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-//     signal.get_data = &ei_camera_get_data;
+void classify_image() {
+    ei::signal_t signal;
+    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+    signal.get_data = &ei_camera_get_data;
 
-//     // Run the classifier
-//     ei_impulse_result_t result = { 0 };
-//     client.loop();
+    // Run the classifier
+    ei_impulse_result_t result = { 0 };
+    client.loop();
 
-//     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-//     if (err != EI_IMPULSE_OK) {
-//         ei_printf("ERR: Failed to run classifier (%d)\n", err);
-//         return;
-//     }
+    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+    if (err != EI_IMPULSE_OK) {
+        ei_printf("ERR: Failed to run classifier (%d)\n", err);
+        return;
+    }
+    client.loop();
 
-//     // print the predictions
-//     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-//                 result.timing.dsp, result.timing.classification, result.timing.anomaly);
+    // print the predictions
+    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+                result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
-// #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-//     bool bb_found = result.bounding_boxes[0].value > 0;
-//     for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
-//         auto bb = result.bounding_boxes[ix];
-//         if (bb.value == 0) {
-//             continue;
-//         }
-//         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-//     }
-//     if (!bb_found) {
-//         ei_printf("    No objects found\n");
-//     }
-// #else
-//     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-//         ei_printf("    %s: %.5f\n", result.classification[ix].label,
-//                                     result.classification[ix].value);
-//     }
-// #endif
+#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+    bool bb_found = result.bounding_boxes[0].value > 0;
+    for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
+        auto bb = result.bounding_boxes[ix];
+        if (bb.value == 0) {
+            continue;
+        }
+        ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+        client.sendTXT(bb.label);
+        client.sendTXT(bb.x);
+        client.sendTXT(bb.y);
+        client.sendTXT(bb.width);
+        client.sendTXT(bb.height);
+        // tokens[ind] = bb.label[0];
+        break;
+    }
+    if (!bb_found) {
+        ei_printf("    No objects found\n");
+        client.sendTXT("reset");
+    }
+#else
+    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+        ei_printf("    %s: %.5f\n", result.classification[ix].label,
+                                    result.classification[ix].value);
+    }
+#endif
 
-// #if EI_CLASSIFIER_HAS_ANOMALY == 1
-//         ei_printf("    anomaly score: %.3f\n", result.anomaly);
-// #endif
-// }
+#if EI_CLASSIFIER_HAS_ANOMALY == 1
+        ei_printf("    anomaly score: %.3f\n", result.anomaly);
+#endif
+}

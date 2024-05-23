@@ -4,7 +4,6 @@ import tornado.websocket
 from api_utils import *
 
 website_clients = []
-image_num = 0
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -34,21 +33,44 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
     def open(self):
         print("ESP32 WebSocket opened")
         self.api_caller = Caller()
+        self.type = 0
+        self.img_num = 0
 
     def on_message(self, message):
-        global image_num
-        print("Received JPEG image data {}".format(image_num))
-        if image_num < 30:
-            self.save_image(message, image_num)
-        if image_num % 5 == 0:
-            update_all_clients(message, bin=True)
-        image_num += 1
+        # image
+        if self.type == 0:
+            print("Received JPEG image data {}".format(self.img_num))
+            if self.img_num < 30:
+                self.save_image(message, self.img_num)
+            if self.img_num % 5 == 0:
+                update_all_clients(message, bin=True)
+            self.img_num += 1
+            self.type = 1
+        
+        # 1: label or not found, 2: x, 3: y, 4: width, 5: height
+        elif self.type == 1:
+            if message == "reset":
+                self.type = 0
+            else:
+                self.label = message
+                self.type = 2
+        elif self.type == 2:
+            self.x = message
+            self.type = 3
+        elif self.type == 3:
+            self.y = message
+            self.type = 4
+        elif self.type == 4:
+            self.width = message
+            self.type = 5
+        elif self.type == 5:
+            self.height = message
+            update_all_clients('label: {}, x: {}, y: {}, width: {}, height: {}'.format(self.label, self.x, self.y, self.width, self.height))
+            print('label: {}, x: {}, y: {}, width: {}, height: {}'.format(self.label, self.x, self.y, self.width, self.height))
+            self.type = 0
+
         # self.api_caller.query(message)
 
-    # def on_message(self, message):
-    #     self.write_message("ESP32: " + message)
-    #     print("Received message: {}".format(message))
-    #     update_all_clients(message)
 
     def save_image(self, image_data, num):
         # Specify the directory and filename to save the image
