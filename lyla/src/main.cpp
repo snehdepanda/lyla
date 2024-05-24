@@ -50,6 +50,7 @@ void ei_camera_deinit(void);
 bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) ;
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
+void flipLED();
 
 // /*Wifi definitions*/
 #define CAMPUS
@@ -61,6 +62,13 @@ void send_image_to_server(uint8_t *img);
 #else
 #error "WiFi not selected"
 #endif
+
+#define S3_IND          12
+#define SIGN            11
+#define WAKE_UP_CAM     35
+#define WAKE_UP_LCD     14
+#define MISC_BUTTON     2
+volatile byte state = LOW;
 
 
 const uint8_t num_chars = 5;
@@ -81,6 +89,16 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println(WiFi.macAddress()); 
+
+    pinMode(WAKE_UP_CAM, INPUT_PULLUP); // Button: wake up from sleep for camera / stop recording, pull up
+    pinMode(S3_IND, OUTPUT); // LED: S3 is woken up
+    pinMode(SIGN, OUTPUT); // LED: sign recognized
+    digitalWrite(12, HIGH); // Button: wake up from sleep for lcd screen, pull up
+    pinMode(WAKE_UP_LCD, INPUT_PULLUP);
+    pinMode(MISC_BUTTON, INPUT_PULLUP);
+
+    attachInterrupt(digitalPinToInterrupt(WAKE_UP_CAM), flipLED, FALLING);
+
 
     delay(2000);
     // while (ei_camera_init() == false) {
@@ -180,6 +198,8 @@ void loop()
     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                 result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
+    client.loop();
+
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
     bool bb_found = result.bounding_boxes[0].value > 0;
     for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
@@ -187,6 +207,7 @@ void loop()
         if (bb.value == 0) {
             continue;
         }
+        digitalWrite(SIGN, HIGH);
         ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
         if (ind < num_chars) {
             tokens[ind] = bb.label[0];
@@ -194,6 +215,8 @@ void loop()
             ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
             break;
         }
+        delay(200);
+        digitalWrite(SIGN, LOW);
     }
     if (!bb_found) {
         ei_printf("    No objects found\n");
@@ -220,6 +243,11 @@ void loop()
     free(snapshot_buf);
     // ei_sleep(5);
 
+}
+
+void flipLED() {
+    state = !state;
+    digitalWrite(SIGN, state);
 }
 
 void send_image_to_server(camera_fb_t *fb) {
