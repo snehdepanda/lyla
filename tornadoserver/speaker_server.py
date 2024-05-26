@@ -17,45 +17,63 @@ class MainHandlerMP3(tornado.web.RequestHandler):
             self.write(f.read())
         self.finish()
 
+# handler for user
+class WebSocketHandler(tornado.websocket.WebSocketHandler):
+    def open(self):
+        print("WebSocket opened")
+        website_clients.append(self)
+
+    def on_message(self, message):
+        # self.write_message("Echo: " + message)
+        # update_all_clients("Echo: " + message)
+        print("Received message: {}".format(message))
+
+    def on_close(self):
+        print("WebSocket closed")
+        website_clients.remove(self)
+
+# handler for esp32
+class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
+    def check_origin(self, origin):
+        return True
+
+    def open(self):
+        print("ESP32 WebSocket opened")
+        self.api_caller = Caller()
+        website_clients.append(self)
+
+    def on_message(self, message):
+        # update_all_clients("Message: " + message)
+        print("Received message: {}".format(message))
+        #mp3_created = True
+        # print("Received base 64 image data")
+        # update_all_clients(message, bin=False)
+        self.api_caller.query(message)
+
+    def on_close(self):
+        print("ESP32 WebSocket closed")
+
+
+def make_app():
+    return tornado.web.Application([
+    #     (r"/", MainHandlerWebsite),
+        (r"/websocket", WebSocketHandler),
+        (r"/websocket_esp32", WebSocketHandlerESP32),
+        (r"/mp3", MainHandlerMP3),
+    ])
+
+if __name__ == "__main__":
+    app = make_app()
+    app.listen(8888)
+    print("Server is running on http://localhost:8888/mp3")
+    tornado.ioloop.IOLoop.current().start()
+
+
+
 # class MainHandlerWebsite(tornado.web.RequestHandler):
 #     def get(self):
 #         self.render("index.html")
 
-# # handler for user
-# class WebSocketHandler(tornado.websocket.WebSocketHandler):
-#     def open(self):
-#         print("WebSocket opened")
-#         website_clients.append(self)
-
-#     def on_message(self, message):
-#         # self.write_message("Echo: " + message)
-#         update_all_clients("Echo: " + message)
-#         print("Received message: {}".format(message))
-
-#     def on_close(self):
-#         print("WebSocket closed")
-#         website_clients.remove(self)
-
-# # handler for esp32
-# class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
-#     def check_origin(self, origin):
-#         return True
-
-#     def open(self):
-#         print("ESP32 WebSocket opened")
-#         self.api_caller = Caller()
-#         website_clients.append(self)
-
-#     def on_message(self, message):
-#         update_all_clients("Message: " + message)
-#         print("Received message: {}".format(message))
-#         #mp3_created = True
-#         # print("Received base 64 image data")
-#         # update_all_clients(message, bin=False)
-#         self.api_caller.query(message)
-
-#     def on_close(self):
-#         print("ESP32 WebSocket closed")
 
 # def update_all_clients(message, bin=False):
 #     if bin == True:
@@ -65,17 +83,3 @@ class MainHandlerMP3(tornado.web.RequestHandler):
 #     else:
 #         for client in website_clients:
 #             client.write_message(message)
-
-def make_app():
-    return tornado.web.Application([
-    #     (r"/", MainHandlerWebsite),
-    #     (r"/websocket", WebSocketHandler),
-    #     (r"/websocket_esp32", WebSocketHandlerESP32),
-        (r"/mp3", MainHandlerMP3),
-    ])
-
-if __name__ == "__main__":
-    app = make_app()
-    app.listen(8888)
-    print("Server is running on http://localhost:8888/mp3")
-    tornado.ioloop.IOLoop.current().start()
