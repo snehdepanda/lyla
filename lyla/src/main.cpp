@@ -1,20 +1,20 @@
-// /*
-// Pseudocode (Assume device always on, so no wake word)
-// Initialize I2S
-// Initialize Camera
-// Initialize Wifi
-// Set threshold for confidence
-// initialize character array
-// Sample continuously at a specified interval:
-//     capture image
-//     if image classification is over threshold:
-//         turn on led signalling letter is recognized
-//         add classified character to character array
-//         turn off led
-//         delay 0.5s
-// break after specified condition
-// send character array to amazon aws
-// */
+/*
+Pseudocode (Assume device always on, so no wake word)
+Initialize I2S
+Initialize Camera
+Initialize Wifi
+Set threshold for confidence
+initialize character array
+Sample continuously at a specified interval:
+    capture image
+    if image classification is over threshold:
+        turn on led signalling letter is recognized
+        add classified character to character array
+        turn off led
+        delay 0.5s
+break after specified condition
+send character array to amazon aws
+*/
 
 
 
@@ -24,33 +24,34 @@
 #include <sign-language_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
 #include <WiFi.h>
-#include "esp_camera.h"
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 
 #include "ei_utils.h"
 #include "website.h"
+#include "globals.h"
 
 
 /* Private variables ------------------------------------------------------- */
-// const char* url = "10.105.252.142";  // sneh eduroam
-const char* url = "10.105.100.183";  // eduroam
+const char* url = "10.105.252.142";  // sneh eduroam
+// const char* url = "10.105.100.183";  // eduroam
 // const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
 const uint16_t port = 8888;
-const char* endpoint = "/websocket_esp32";
+const char* endpoint = "/text2speech";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
-static bool is_initialised = false;
-uint8_t *snapshot_buf; //points to the output of the capture
+bool is_initialised = false;
+uint8_t *snapshot_buf = nullptr; // points to the output of the capture
 
 
 /* Function definitions ------------------------------------------------------- */
-bool ei_camera_init(void);
+// bool ei_camera_init(void);
 void ei_camera_deinit(void);
 bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) ;
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 void send_image_to_server(uint8_t *img);
-void flipLED();
+// void flipLED();
+void flipInfer();
+// void flipSleep();
+void classify_image();
 
 // /*Wifi definitions*/
 #define CAMPUS
@@ -63,15 +64,34 @@ void flipLED();
 #error "WiFi not selected"
 #endif
 
+#if defined(CAMERA_ESP32_S3)
 #define S3_IND          12
 #define SIGN            11
-#define WAKE_UP_CAM     35
-#define WAKE_UP_LCD     14
+#define CAM_INFER       35
+#define INFER_LED        45
+#define WAKE_UP_PIN     14
 #define MISC_BUTTON     2
-volatile byte state = LOW;
+#define LCD_SDA         41
+#define LCD_SCL         42
 
+#elif defined(CAMERA_ESP32_CAM)
+#define S3_IND          16
+#define SIGN            13
+#define CAM_INFER       15
+#define INFER_LED       -1
+#define WAKE_UP_PIN     12
+#define MISC_BUTTON     4
+#define LCD_SDA         2
+#define LCD_SCL         14
+#endif
 
-const uint8_t num_chars = 5;
+RTC_DATA_ATTR struct {
+    bool shouldSleep = true;
+} sleepState;
+
+volatile bool infer = true;
+
+const uint8_t num_chars = 10;
 char tokens[num_chars];
 static uint8_t ind = 0;
 static uint8_t lcdColumns = 16;
@@ -81,6 +101,23 @@ static uint8_t lcdRows = 2;
 WebSocketsClient client;
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
 
+void goToSleep() {
+  Serial.println("Entering deep sleep...");
+  delay(1000); // Delay to allow serial messages to complete
+  esp_deep_sleep_start();
+}
+
+bool isButtonPressed() {
+  if (digitalRead(WAKE_UP_PIN) == LOW) {
+    delay(100); // Debounce delay
+    if (digitalRead(WAKE_UP_PIN) == LOW) {
+      while (digitalRead(WAKE_UP_PIN) == LOW); // Wait for button release to avoid multiple toggles
+      return true;
+    }
+  }
+  return false;
+}
+
 
 /**
 * @brief      Arduino setup function
@@ -88,33 +125,64 @@ Adafruit_SSD1306 display(128, 32, &Wire, -1);
 void setup()
 {
     Serial.begin(115200);
-    Serial.println(WiFi.macAddress()); 
+    Serial.println("Hello World!"); 
 
-    pinMode(WAKE_UP_CAM, INPUT_PULLUP); // Button: wake up from sleep for camera / stop recording, pull up
     pinMode(S3_IND, OUTPUT); // LED: S3 is woken up
+    digitalWrite(S3_IND, HIGH);
     pinMode(SIGN, OUTPUT); // LED: sign recognized
-    digitalWrite(12, HIGH); // Button: wake up from sleep for lcd screen, pull up
-    pinMode(WAKE_UP_LCD, INPUT_PULLUP);
-    pinMode(MISC_BUTTON, INPUT_PULLUP);
+    digitalWrite(SIGN, LOW);
+    pinMode(INFER_LED, OUTPUT);
+    digitalWrite(INFER_LED, LOW);
 
-    attachInterrupt(digitalPinToInterrupt(WAKE_UP_CAM), flipLED, FALLING);
+    pinMode(CAM_INFER, INPUT_PULLUP); // Button: start camera inference
+    pinMode(WAKE_UP_PIN, INPUT_PULLUP); // Button: wake up from sleep
+    pinMode(MISC_BUTTON, INPUT_PULLUP); // Button: miscellaneous
+
+    attachInterrupt(digitalPinToInterrupt(CAM_INFER), flipInfer, FALLING);
+    // attachInterrupt(digitalPinToInterrupt(WAKE_UP_PIN), flipSleep, FALLING);
+    attachInterrupt(digitalPinToInterrupt(MISC_BUTTON), flipInfer, FALLING);
+
+
+    // Enable wakeup by external pin
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_UP_PIN, LOW);
+
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+        Serial.println("Woken up by external signal using RTC_IO.");
+        sleepState.shouldSleep = !sleepState.shouldSleep;  // Toggle the sleep state
+    } else {
+        Serial.println("Power on or external reset.");
+    }
+
+    if (sleepState.shouldSleep) {
+        Serial.println("Going to sleep now.");
+        goToSleep();
+    }
 
 
     delay(2000);
-    // while (ei_camera_init() == false) {
-    //     ei_printf("Failed to initialize Camera!\r\n");
-    //     delay(500);
-    // }
-    ei_camera_init();
-    ei_printf("Camera initialized\r\n");
+    while (ei_camera_init() == false) {
+        Serial.println("Camera Init Failed!");
+        delay(500);
+    }
+    is_initialised = true;
+    Serial.println("Camera initialized\r\n");
 
     // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-    Wire.setPins(41,42);
+    Wire.setPins(41,42); // ESP32-S3
+    // Wire.setPins(2,14); // ESP32-S
     if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
         Serial.println(F("SSD1306 allocation failed"));
         for(;;); // Don't proceed, loop forever
     }
     Serial.println("LCD screen initialized!");
+
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.setTextSize(1);
+    display.setTextWrap(true);
+    display.setTextColor(WHITE);
+    display.print("Waiting... ");
+    display.display();
 
     // Connect to WiFi
     WiFi.mode(WIFI_STA);
@@ -148,107 +216,58 @@ void setup()
 */
 void loop()
 {
-    display.clearDisplay();
-    delay(500);
-    display.setCursor(0,0);
-    display.setTextSize(1);
-    display.setTextWrap(true);
-    display.setTextColor(WHITE);
-    display.print("12345678910111213141516");
-    display.display();
-    
-    // client.sendTXT("hello");
-    client.loop();
-
-    // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
-    if (ei_sleep(5) != EI_IMPULSE_OK) {
-        return;
+    if (isButtonPressed()) {
+      Serial.println("Button pressed, toggling sleep state.");
+      sleepState.shouldSleep = !sleepState.shouldSleep;
+      if (sleepState.shouldSleep) {
+        goToSleep();
+      }
     }
 
-    snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
+    delay(200);
+    if (infer) {
+        client.loop();
 
-    // check if allocation was successful
-    if(snapshot_buf == nullptr) {
-        ei_printf("ERR: Failed to allocate snapshot buffer!\n");
-        return;
-    }
+        // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
+        if (ei_sleep(5) != EI_IMPULSE_OK) {
+            return;
+        }
 
-    ei::signal_t signal;
-    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-    signal.get_data = &ei_camera_get_data;
-    client.loop();
-    if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
-        ei_printf("Failed to capture image\r\n");
+        snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
+
+        // check if allocation was successful
+        if(snapshot_buf == nullptr) {
+            ei_printf("ERR: Failed to allocate snapshot buffer!\n");
+            return;
+        }
+
+        client.loop();
+        if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
+            ei_printf("Failed to capture image\r\n");
+            free(snapshot_buf);
+            return;
+        }
+
+        classify_image();
+        
         free(snapshot_buf);
-        return;
+        // ei_sleep(5);
     }
-    ei_printf("input width: %i, input height: %i", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
-    client.loop();
-
-    // Run the classifier
-    ei_impulse_result_t result = { 0 };
-
-    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-    if (err != EI_IMPULSE_OK) {
-        ei_printf("ERR: Failed to run classifier (%d)\n", err);
-        return;
+    else {
+        client.loop();
+        delay(100);
     }
-
-    // print the predictions
-    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-                result.timing.dsp, result.timing.classification, result.timing.anomaly);
-
-    client.loop();
-
-#if EI_CLASSIFIER_OBJECT_DETECTION == 1
-    bool bb_found = result.bounding_boxes[0].value > 0;
-    for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
-        auto bb = result.bounding_boxes[ix];
-        if (bb.value == 0) {
-            continue;
-        }
-        digitalWrite(SIGN, HIGH);
-        ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-        if (ind < num_chars) {
-            tokens[ind] = bb.label[0];
-            ind++;
-            ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
-            break;
-        }
-        delay(200);
-        digitalWrite(SIGN, LOW);
-    }
-    if (!bb_found) {
-        ei_printf("    No objects found\n");
-    }
-#else
-    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-        ei_printf("    %s: %.5f\n", result.classification[ix].label,
-                                    result.classification[ix].value);
-    }
-#endif
-
-#if EI_CLASSIFIER_HAS_ANOMALY == 1
-        ei_printf("    anomaly score: %.3f\n", result.anomaly);
-#endif
-    client.loop();
-    if (ind == num_chars) {
-        ind = 0;
-        display.clearDisplay();
-        display.setCursor(0,0);
-        display.setTextSize(1);
-        display.print(tokens);
-        client.sendTXT(tokens, num_chars);
-    }
-    free(snapshot_buf);
-    // ei_sleep(5);
 
 }
 
-void flipLED() {
-    state = !state;
-    digitalWrite(SIGN, state);
+
+void flipInfer() {
+    infer = !infer;
+    Serial.print("Infer Flipped to ");
+    Serial.println(infer);
+    digitalWrite(INFER_LED, infer);
 }
+
 
 void send_image_to_server(camera_fb_t *fb) {
     // send jpeg image to server
@@ -261,34 +280,34 @@ void send_image_to_server(camera_fb_t *fb) {
  *
  * @retval  false if initialisation failed
  */
-bool ei_camera_init(void) {
+// bool ei_camera_init(void) {
 
-    if (is_initialised) return true;
+//     if (is_initialised) return true;
 
-    //initialize the camera
-    while (true) {
-        esp_err_t err = esp_camera_init(&camera_config);
-        if (err != ESP_OK) Serial.printf("Camera init failed with error 0x%x\n", err);
-        else break;
-        delay(1000);
-    }
-    // esp_err_t err = esp_camera_init(&camera_config);
-    // if (err != ESP_OK) {
-    //   Serial.printf("Camera init failed with error 0x%x\n", err);
-    //   return false;
-    // }
+//     //initialize the camera
+//     while (true) {
+//         esp_err_t err = esp_camera_init(&camera_config);
+//         if (err != ESP_OK) Serial.printf("Camera init failed with error 0x%x\n", err);
+//         else break;
+//         delay(1000);
+//     }
+//     // esp_err_t err = esp_camera_init(&camera_config);
+//     // if (err != ESP_OK) {
+//     //   Serial.printf("Camera init failed with error 0x%x\n", err);
+//     //   return false;
+//     // }
 
-    sensor_t * s = esp_camera_sensor_get();
-    // initial sensors are flipped vertically and colors are a bit saturated
-    if (s->id.PID == OV3660_PID) {
-      s->set_vflip(s, 1); // flip it back
-      s->set_brightness(s, 1); // up the brightness just a bit
-      s->set_saturation(s, 0); // lower the saturation
-    }
+//     sensor_t * s = esp_camera_sensor_get();
+//     // initial sensors are flipped vertically and colors are a bit saturated
+//     if (s->id.PID == OV3660_PID) {
+//       s->set_vflip(s, 1); // flip it back
+//       s->set_brightness(s, 1); // up the brightness just a bit
+//       s->set_saturation(s, 0); // lower the saturation
+//     }
 
-    is_initialised = true;
-    return true;
-}
+//     is_initialised = true;
+//     return true;
+// }
 
 /**
  * @brief      Stop streaming of sensor data
@@ -384,6 +403,74 @@ static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
     }
     // and done!
     return 0;
+}
+
+void classify_image() {
+    ei::signal_t signal;
+    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+    signal.get_data = &ei_camera_get_data;
+    ei_printf("input width: %i, input height: %i\n", EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+
+    client.loop();
+
+    ei_impulse_result_t result = { 0 };
+
+    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+        if (err != EI_IMPULSE_OK) {
+            ei_printf("ERR: Failed to run classifier (%d)\n", err);
+            return;
+        }
+
+    // print the predictions
+    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+                result.timing.dsp, result.timing.classification, result.timing.anomaly);
+
+    client.loop();
+    #if EI_CLASSIFIER_OBJECT_DETECTION == 1
+        bool bb_found = result.bounding_boxes[0].value > 0;
+        for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
+            auto bb = result.bounding_boxes[ix];
+            if (bb.value == 0) {
+                continue;
+            }
+            digitalWrite(SIGN, HIGH);
+            ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+            client.loop();
+            delay(1000);
+            client.loop();
+            digitalWrite(SIGN, LOW);
+            if (ind < num_chars) {
+                tokens[ind] = bb.label[0];
+                ind++;
+                ei_printf("%s added to symbol array, currently %i elements in the array", bb.label, ind);
+                break;
+            }
+            
+        }
+        if (!bb_found) {
+            ei_printf("    No objects found\n");
+        }
+    #else
+        for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+            ei_printf("    %s: %.5f\n", result.classification[ix].label,
+                                        result.classification[ix].value);
+        }
+    #endif
+
+    #if EI_CLASSIFIER_HAS_ANOMALY == 1
+            ei_printf("    anomaly score: %.3f\n", result.anomaly);
+    #endif
+        client.loop();
+        if (ind == num_chars) {
+            ind = 0;
+            // display.clearDisplay();
+            // display.setCursor(0,0);
+            // display.setTextSize(1);
+            // display.print(tokens);
+            Serial.printf("Sent %s\n", tokens);
+            client.sendTXT(tokens, num_chars);
+        }
+    
 }
 
 #if !defined(EI_CLASSIFIER_SENSOR) || EI_CLASSIFIER_SENSOR != EI_CLASSIFIER_SENSOR_CAMERA

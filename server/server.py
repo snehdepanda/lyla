@@ -33,17 +33,12 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
         print("ESP32 WebSocket opened")
         self.api_caller = Caller()
 
-    # def on_message(self, message):
-
-    #     print("Received JPEG image data")
-    #     print(message[:10])
-    #     update_all_clients(message, bin=False)
-    #     # self.api_caller.query(message)
 
     def on_message(self, message):
         self.write_message("ESP32: " + message)
         print("Received message: {}".format(message))
         update_all_clients(message)
+        # self.api_caller.query(message)
 
 
     def on_close(self):
