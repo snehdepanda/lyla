@@ -74,14 +74,14 @@ void setup()
     }
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-    Serial.print("Classifier input width: ");
-    Serial.println(EI_CLASSIFIER_INPUT_WIDTH);
-    Serial.print("Classifier input height: ");
-    Serial.println(EI_CLASSIFIER_INPUT_HEIGHT);
-    Serial.print("Classifier raw frame buffer cols: ");
-    Serial.println(EI_CAMERA_RAW_FRAME_BUFFER_COLS);
-    Serial.print("Classifier raw frame buffer rows: ");
-    Serial.println(EI_CAMERA_RAW_FRAME_BUFFER_ROWS);
+    // Serial.print("Classifier input width: ");
+    // Serial.println(EI_CLASSIFIER_INPUT_WIDTH);
+    // Serial.print("Classifier input height: ");
+    // Serial.println(EI_CLASSIFIER_INPUT_HEIGHT);
+    // Serial.print("Classifier raw frame buffer cols: ");
+    // Serial.println(EI_CAMERA_RAW_FRAME_BUFFER_COLS);
+    // Serial.print("Classifier raw frame buffer rows: ");
+    // Serial.println(EI_CAMERA_RAW_FRAME_BUFFER_ROWS);
 
     // Connect to WebSocket server
     client.begin(url, port, endpoint);
@@ -131,8 +131,8 @@ void send_image_to_server(camera_fb_t *fb) {
     // send jpeg image to server
     // client.sendBIN(img, sizeof(img));
     client.sendBIN((const uint8_t*)fb->buf, fb->len);
-    Serial.print("Sent image ");
-    Serial.println(count);
+    // Serial.print("Sent image ");
+    // Serial.println(count);
 }
 
 /**
@@ -197,7 +197,7 @@ bool camera_capture(uint8_t *out_buf) {
     client.loop();
     delay(40);
     send_image_to_server(fb);
-    client.loop();
+    // client.loop();
     esp_camera_fb_return(fb);
 
     return true;

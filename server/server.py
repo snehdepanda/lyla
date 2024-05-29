@@ -38,9 +38,9 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         global image_num
         print("Received JPEG image data {}".format(image_num))
-        if image_num < 30:
+        if image_num < 35:
             self.save_image(message, image_num)
-        if image_num % 5 == 0:
+        if image_num % 3 == 0:
             update_all_clients(message, bin=True)
         image_num += 1
         # self.api_caller.query(message)
@@ -52,8 +52,13 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
 
     def save_image(self, image_data, num):
         # Specify the directory and filename to save the image
-        save_directory = '../../datasets/test'
-        filename = 'test-{}.jpeg'.format(num)
+        c = '5'
+        mod = 'black-shirt'
+        name = 'stephen'
+        save_directory = '../../datasets/L440{}'.format(name)
+        filename = '{}-{}-{}-{}.jpeg'.format(c, name, mod, num)
+        # save_directory = '../../datasets/test'.format(name)
+        # filename = '{}-{}-{}-{}.jpeg'.format(c, name, mod, num)
 
         # Ensure the directory exists
         if not os.path.exists(save_directory):
