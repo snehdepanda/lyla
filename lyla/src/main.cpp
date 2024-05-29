@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <wakeup.h>
 #include <speaker.h>
 #include <WebSocketsClient.h>
 #include <wifi_reconnect.h>
@@ -94,17 +95,37 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
 void setup()
 {
-    Serial.begin(115200);
-    delay(1000);
-    pinMode(LED_PIN, OUTPUT);
-    wifi_setup();
-    setupI2Smic();
+  Serial.begin(115200);
+  delay(1000);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(WAKE_UP_PIN, INPUT_PULLUP);
+  pinMode(WAKE_UP_LED_PIN, OUTPUT);
 
-    pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP);  // Setup button pin
-    attachInterrupt(PUSH_BUTTON_PIN, handleButtonPress, CHANGE);  // Attach interrupt to handle button press
+  // Enable wakeup by external pin
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_UP_PIN, LOW);
 
-    webSocket.begin(websocket_server_host, websocket_server_port, websocket_path);
-    webSocket.onEvent(webSocketEvent);
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("Woken up by external signal using RTC_IO.");
+    sleepState.shouldSleep = !sleepState.shouldSleep;  // Toggle the sleep state
+  } else {
+    Serial.println("Power on or external reset.");
+  }
+
+  if (sleepState.shouldSleep) {
+    Serial.println("Going to sleep now.");
+    goToSleep();
+  } else {
+    digitalWrite(WAKE_UP_LED_PIN, HIGH); // Turn on LED to indicate wake up mode
+  }
+
+  wifi_setup();
+  setupI2Smic();
+
+  pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP);  // Setup button pin
+  attachInterrupt(PUSH_BUTTON_PIN, handleButtonPress, CHANGE);  // Attach interrupt to handle button press
+
+  webSocket.begin(websocket_server_host, websocket_server_port, websocket_path);
+  webSocket.onEvent(webSocketEvent);
 
 
 // //   // Connect to WebSocket server
@@ -130,6 +151,18 @@ void loop()
 //   }
 
     webSocket.loop();
+
+    // Check if the button is pressed again to toggle the sleep state
+    if (isButtonPressed()) {
+      Serial.println("Button pressed, toggling sleep state.");
+      sleepState.shouldSleep = !sleepState.shouldSleep;
+      if (sleepState.shouldSleep) {
+        goToSleep();
+      } else {
+        digitalWrite(WAKE_UP_LED_PIN, HIGH); // Turn on LED to indicate wake up mode
+      
+      }
+    }
     if (webSocket.isConnected()) {
         startAudioCollection();
     } else {
@@ -139,3 +172,41 @@ void loop()
 
     check_mp3_ready(check_mp3_url, mp3_url, file, buff, out, mp3);
 }
+
+
+
+
+// void setup() {
+//   Serial.begin(115200);
+//   pinMode(WAKE_UP_PIN, INPUT_PULLUP);
+
+//   // Enable wakeup by external pin
+//   esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_UP_PIN, LOW);
+
+//   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+//     Serial.println("Woken up by external signal using RTC_IO.");
+//     sleepState.shouldSleep = !sleepState.shouldSleep;  // Toggle the sleep state
+//   } else {
+//     Serial.println("Power on or external reset.");
+//   }
+
+//   if (sleepState.shouldSleep) {
+//     Serial.println("Going to sleep now.");
+//     goToSleep();
+//   }
+// }
+
+// void loop() {
+//   Serial.println("ESP32 is now awake and running. Press the button to go to sleep.");
+//   delay(1000); // Simulate some activity
+
+//   // Check if the button is pressed again to toggle the sleep state
+//   if (isButtonPressed()) {
+//     Serial.println("Button pressed, toggling sleep state.");
+//     sleepState.shouldSleep = !sleepState.shouldSleep;
+//     if (sleepState.shouldSleep) {
+//       goToSleep();
+//     }
+//   }
+// }
+
