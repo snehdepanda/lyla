@@ -21,7 +21,7 @@ task 1: camera sign inference
 // #include "deepsleep.h"
 
 void toggleLED(void *parameter);
-void signInference(void *parameter);
+// void signInference(void *parameter);
 void flipInfer();
 void goToSleep();
 bool isButtonPressed();
@@ -56,7 +56,7 @@ static const BaseType_t app_cpu = 1;
 #define LCD_SCL         42          // LCD SCL
 
 #elif defined(CAMERA_ESP32_CAM)
-#define S3_IND          16
+// #define S3_IND          16          // bruh can't use io16
 #define SIGN            13
 #define CAM_INFER       15
 #define WAKE_UP_PIN     12
@@ -73,13 +73,16 @@ RTC_DATA_ATTR struct {
 
 volatile bool infer = false;
 bool is_initialised = false;
+uint8_t *snapshot_buf = nullptr;
 
 
 void setup() {
     Serial.begin(115200);
     Serial.println("Device on");
-    pinMode(S3_IND, OUTPUT);
-    digitalWrite(S3_IND, HIGH);
+
+
+    // pinMode(S3_IND, OUTPUT);
+    // digitalWrite(S3_IND, HIGH);
     pinMode(WAKE_UP_PIN, INPUT_PULLUP);
 
     esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_UP_PIN, LOW);
@@ -96,7 +99,7 @@ void setup() {
         goToSleep();
     }
 
-    // vTaskDelay(2000/portTICK_PERIOD_MS);
+    vTaskDelay(2000/portTICK_PERIOD_MS);
 
     pinMode(SIGN, OUTPUT);
     digitalWrite(SIGN, LOW);
@@ -112,46 +115,46 @@ void setup() {
         Serial.println("Failed to initialize Camera!\r\n");
         delay(500);
     }
-    // is_initialised = true;
-    // Serial.println("Camera Initialized");
-    // Wire.setPins(LCD_SDA, LCD_SCL);
+    is_initialised = true;
+    Serial.println("Camera Initialized");
+    Wire.setPins(LCD_SDA, LCD_SCL);
 
-    // if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    //     Serial.println(F("SSD1306 allocation failed"));
-    //     for(;;); // Don't proceed, loop forever
-    // }
-    // Serial.println("LCD screen initialized!");
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for(;;); // Don't proceed, loop forever
+    }
+    Serial.println("LCD screen initialized!");
 
-    // WiFi.mode(WIFI_STA);
-    // WiFi.begin(SSID);
-    // while (WiFi.status() != WL_CONNECTED) {
-    //     delay(1000);
-    //     Serial.println("Connecting to WiFi...");
-    // }
-    // Serial.print("IP address: ");
-    // Serial.println(WiFi.localIP());
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(SSID);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
 
-    // xTaskCreatePinnedToCore(
-    //     toggleLED,
-    //     "Toggle LED",
-    //     1024,
-    //     NULL,
-    //     1,
-    //     NULL,
-    //     app_cpu
-    // );
-    // Serial.println("Task 1 created");
+    xTaskCreatePinnedToCore(
+        toggleLED,
+        "Toggle LED",
+        1024,
+        NULL,
+        1,
+        NULL,
+        app_cpu
+    );
+    Serial.println("Task 1 created");
 
-    // xTaskCreatePinnedToCore(
-    //     signInference,
-    //     "Signing Inference",
-    //     1024,
-    //     NULL,
-    //     2,
-    //     NULL,
-    //     app_cpu
-    // );
-    // Serial.println("Task 2 created");
+    xTaskCreatePinnedToCore(
+        signInference,
+        "Signing Inference",
+        10000,
+        NULL,
+        2,
+        NULL,
+        app_cpu
+    );
+    Serial.println("Task 2 created");
 }
 
 void loop() {
@@ -166,22 +169,13 @@ void loop() {
 
 void toggleLED(void *parameter) {
     while(1) {
-        digitalWrite(S3_IND, HIGH);
+        digitalWrite(SIGN, HIGH);
         vTaskDelay(500 / portTICK_PERIOD_MS);
-        digitalWrite(S3_IND, LOW);
+        digitalWrite(SIGN, LOW);
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
 
-void signInference(void *parameter) {
-    // if (infer) {
-    //     Serial.println("Inference on");
-    // }
-    while(1) {
-        Serial.println("hello");
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-    }
-}
 
 void flipInfer() {
     infer = !infer;

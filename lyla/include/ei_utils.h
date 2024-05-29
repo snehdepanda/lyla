@@ -1,5 +1,7 @@
-// #include <Arduino.h>
+#include <Arduino.h>
 // #include "esp_camera.h"
+
+
 
 
 #define CAMERA_ESP32_CAM
@@ -56,5 +58,6 @@
 
 bool ei_camera_init(void);
 // void ei_camera_deinit(void);
-// bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
+bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
+void signInference(void *parameter);
 // static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);

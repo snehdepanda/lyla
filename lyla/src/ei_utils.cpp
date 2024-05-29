@@ -1,8 +1,8 @@
 #include "ei_utils.h"
 #include "globals.h"
 
-// #include <sign-language_inferencing.h>
-// #include "edge-impulse-sdk/dsp/image/image.hpp"
+#include <sign-language_inferencing.h>
+#include "edge-impulse-sdk/dsp/image/image.hpp"
 
 camera_config_t camera_config = {
     .pin_pwdn = PWDN_GPIO_NUM,
@@ -71,49 +71,76 @@ bool ei_camera_init(void) {
 // // }
 
 
-// bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) {
-//     bool do_resize = false;
+bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) {
+    bool do_resize = false;
 
-//     // if (!is_initialised) {
-//     //     ei_printf("ERR: Camera is not initialized\r\n");
-//     //     return false;
-//     // }
+    if (!is_initialised) {
+        ei_printf("ERR: Camera is not initialized\r\n");
+        return false;
+    }
 
-//     camera_fb_t *fb = esp_camera_fb_get();
+    camera_fb_t *fb = esp_camera_fb_get();
 
-//     if (!fb) {
-//         ei_printf("Camera capture failed\n");
-//         return false;
-//     }
+    if (!fb) {
+        ei_printf("Camera capture failed\n");
+        return false;
+    }
 
-// //    bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, snapshot_buf);
-//    bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
+//    bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, snapshot_buf);
+   bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
 
-//    esp_camera_fb_return(fb);
+   esp_camera_fb_return(fb);
 
-//    if(!converted){
-//        ei_printf("Conversion failed\n");
-//        return false;
-//    }
+   if(!converted){
+       ei_printf("Conversion failed\n");
+       return false;
+   }
 
-//     if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS)
-//         || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS)) {
-//         do_resize = true;
-//     }
+    if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS)
+        || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS)) {
+        do_resize = true;
+    }
 
-//     if (do_resize) {
-//         ei::image::processing::crop_and_interpolate_rgb888(
-//         out_buf,
-//         EI_CAMERA_RAW_FRAME_BUFFER_COLS,
-//         EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
-//         out_buf,
-//         img_width,
-//         img_height);
-//     }
+    if (do_resize) {
+        ei::image::processing::crop_and_interpolate_rgb888(
+        out_buf,
+        EI_CAMERA_RAW_FRAME_BUFFER_COLS,
+        EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+        out_buf,
+        img_width,
+        img_height);
+    }
 
 
-//     return true;
-// }
+    return true;
+}
+
+void signInference(void *parameter) {
+    while(1) {
+        Serial.println("hello");
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+
+        if (ei_sleep(5) != EI_IMPULSE_OK) {
+            continue;
+        }
+
+        snapshot_buf = (uint8_t*)malloc(EI_CAMERA_IMAGE_SIZE);
+
+        if(snapshot_buf == nullptr) {
+            ei_printf("ERR: Failed to allocate snapshot buffer!\n");
+            continue;
+        }
+
+        if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
+            ei_printf("Failed to capture image\r\n");
+            free(snapshot_buf);
+            continue;
+        }
+        Serial.println("Captured Image");
+
+        free(snapshot_buf); 
+    }
+}
 
 // // static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr, uint8_t *raw_buf)
 // // {
