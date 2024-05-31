@@ -7,7 +7,7 @@
 WebSocketsClient webSocket;
 // Button definitions
 #define PUSH_BUTTON_PIN 15  // Change as per your pushbutton GPIO connection
-volatile bool recording = false;
+volatile bool recording = true;
 volatile bool buttonPressed = false;
 
 // I2S buffer for mic initializations
@@ -22,16 +22,16 @@ const uint16_t websocket_server_port = 8888;
 const char* websocket_path = "/audio";
 
 
-// // Button handler
-void IRAM_ATTR handleButtonPress() {
-    // Toggle recording state only if button release is detected
-    if (digitalRead(PUSH_BUTTON_PIN) == LOW) {
-        buttonPressed = !buttonPressed;
-        if (!buttonPressed) {  // Trigger on button release to avoid multiple toggles
-            recording = !recording;
-        }
-    }
-}
+// // // Button handler
+// void IRAM_ATTR handleButtonPress() {
+//     // Toggle recording state only if button release is detected
+//     if (digitalRead(PUSH_BUTTON_PIN) == LOW) {
+//         buttonPressed = !buttonPressed;
+//         if (!buttonPressed) {  // Trigger on button release to avoid multiple toggles
+//             recording = !recording;
+//         }
+//     }
+// }
 
 void startAudioCollection() {
     if (recording) {
@@ -52,7 +52,7 @@ void startAudioCollection() {
             }
         }
         
-        recording = !recording; // Stop recording after one iteration
+        // recording = !recording; // Stop recording after one iteration
         Serial.println("Stopped Recording...");
     } else {
         // Perform any needed tasks while not recording
@@ -88,8 +88,8 @@ void setup() {
   wifiManager.autoConnect("AutoConnectAP"); 
   Serial.println("Connected to WiFi!");
 
-  pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP);  // Setup button pin
-  attachInterrupt(PUSH_BUTTON_PIN, handleButtonPress, CHANGE);  // Attach interrupt to handle button press
+//   pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP);  // Setup button pin
+//   attachInterrupt(PUSH_BUTTON_PIN, handleButtonPress, CHANGE);  // Attach interrupt to handle button press
 
   webSocket.begin(websocket_server_host, websocket_server_port, websocket_path);
   webSocket.onEvent(webSocketEvent);
