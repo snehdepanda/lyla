@@ -3,10 +3,9 @@ task 1: camera sign inference
 */
 
 
-
 /* Includes ---------------------------------------------------------------- */
 #include <Arduino.h>
-#include <WebSocketsClient.h>
+// #include <WebSocketsClient.h>
 // #include <sign-language_inferencing.h>
 // #include "edge-impulse-sdk/dsp/image/image.hpp"
 #include <WiFi.h>
@@ -21,17 +20,16 @@ task 1: camera sign inference
 // #include "deepsleep.h"
 
 void toggleLED(void *parameter);
-// void signInference(void *parameter);
 void flipInfer();
 void goToSleep();
 bool isButtonPressed();
 void displayTask();
 
-#if CONFIG_FREERTOS_UNICORE
-static const BaseType_t app_cpu = 0;
-#else
-static const BaseType_t app_cpu = 1;
-#endif
+// #if CONFIG_FREERTOS_UNICORE
+// static const BaseType_t app_cpu = 0;
+// #else
+// static const BaseType_t app_cpu = 1;
+// #endif
 
 // /*Wifi definitions*/
 #define CAMPUS
@@ -44,26 +42,7 @@ static const BaseType_t app_cpu = 1;
 #error "WiFi not selected"
 #endif
 
-// defines
-#if defined(CAMERA_ESP32_S3)
-#define S3_IND          14          // LED: ESP is on
-#define SIGN            11          // LED: sign recognized
-#define CAM_INFER       35          // Button: toggle inference
-#define INFER_LED       45          // LED: inference is on
-#define WAKE_UP_PIN     12          // Button: toggle sleep
-#define MISC_BUTTON     2           // Button: random button
-#define LCD_SDA         41          // LCD SDA
-#define LCD_SCL         42          // LCD SCL
 
-#elif defined(CAMERA_ESP32_CAM)
-// #define S3_IND          16          // bruh can't use io16
-#define SIGN            13
-#define CAM_INFER       15
-#define WAKE_UP_PIN     12
-#define MISC_BUTTON     4
-#define LCD_SDA         2
-#define LCD_SCL         14
-#endif
 
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
 
@@ -73,8 +52,6 @@ RTC_DATA_ATTR struct {
 
 volatile bool infer = false;
 bool is_initialised = false;
-uint8_t *snapshot_buf = nullptr;
-
 
 void setup() {
     Serial.begin(115200);
@@ -134,27 +111,38 @@ void setup() {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
-    xTaskCreatePinnedToCore(
-        toggleLED,
-        "Toggle LED",
-        1024,
-        NULL,
-        1,
-        NULL,
-        app_cpu
-    );
+    wsInitialize();
+
+    // xTaskCreate(
+    //     toggleLED,
+    //     "Toggle LED",
+    //     1024,
+    //     NULL,
+    //     2,
+    //     NULL
+    // );
     Serial.println("Task 1 created");
 
-    xTaskCreatePinnedToCore(
+    xTaskCreate(
         signInference,
         "Signing Inference",
         10000,
         NULL,
-        2,
-        NULL,
-        app_cpu
+        3,
+        NULL
     );
     Serial.println("Task 2 created");
+
+    xTaskCreatePinnedToCore(
+        wsConnect,
+        "Websocket Connection",
+        2048,
+        NULL,
+        1,
+        NULL,
+        wifi_core
+    );
+    Serial.println("Task 3 created");
 }
 
 void loop() {
