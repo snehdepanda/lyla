@@ -7,8 +7,11 @@
 WebSocketsClient webSocket;
 // Button definitions
 #define PUSH_BUTTON_PIN 15  // Change as per your pushbutton GPIO connection
-volatile bool recording = true;
+volatile bool recording = false;
 volatile bool buttonPressed = false;
+
+// ESP On Indicator LED
+#define WROOM_IND 27
 
 // I2S buffer for mic initializations
 int32_t mic_read_buffer[buf_len] = {0};
@@ -22,16 +25,16 @@ const uint16_t websocket_server_port = 8888;
 const char* websocket_path = "/audio";
 
 
-// // // Button handler
-// void IRAM_ATTR handleButtonPress() {
-//     // Toggle recording state only if button release is detected
-//     if (digitalRead(PUSH_BUTTON_PIN) == LOW) {
-//         buttonPressed = !buttonPressed;
-//         if (!buttonPressed) {  // Trigger on button release to avoid multiple toggles
-//             recording = !recording;
-//         }
-//     }
-// }
+// // Button handler
+void IRAM_ATTR handleButtonPress() {
+    // Toggle recording state only if button release is detected
+    if (digitalRead(PUSH_BUTTON_PIN) == HIGH) {
+        buttonPressed = !buttonPressed;
+        if (!buttonPressed) {  // Trigger on button release to avoid multiple toggles
+            recording = !recording;
+        }
+    }
+}
 
 void startAudioCollection() {
     if (recording) {
@@ -44,9 +47,13 @@ void startAudioCollection() {
             if (WiFi.isConnected()) {
                 webSocket.sendBIN((uint8_t*)mic_read_buffer, bytes_read);
             }
-            buf_counter++;
-            if (buf_counter == 80) {
-                buf_counter = 0;
+            // buf_counter++;
+            // if (buf_counter == 80) {
+            //     buf_counter = 0;
+            //     webSocket.disconnect();
+            //     break;
+            // }
+            if (!buttonPressed) {
                 webSocket.disconnect();
                 break;
             }
@@ -82,14 +89,16 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
+  pinMode(WROOM_IND, OUTPUT);
+  digitalWrite(WROOM_IND, HIGH);
   setupI2Smic();
 
   WiFiManager wifiManager;
   wifiManager.autoConnect("AutoConnectAP"); 
   Serial.println("Connected to WiFi!");
 
-//   pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP);  // Setup button pin
-//   attachInterrupt(PUSH_BUTTON_PIN, handleButtonPress, CHANGE);  // Attach interrupt to handle button press
+  pinMode(PUSH_BUTTON_PIN, INPUT_PULLUP);  // Setup button pin
+  attachInterrupt(PUSH_BUTTON_PIN, handleButtonPress, CHANGE);  // Attach interrupt to handle button press
 
   webSocket.begin(websocket_server_host, websocket_server_port, websocket_path);
   webSocket.onEvent(webSocketEvent);
@@ -98,7 +107,7 @@ void setup() {
 void loop() {
     webSocket.loop();
     if (webSocket.isConnected()) {
-        startAudioCollection();
+            startAudioCollection();
     } else {
         Serial.println("WebSocket not connected...");
         digitalWrite(LED_PIN, LOW);  // Turn off LED
