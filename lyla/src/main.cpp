@@ -153,6 +153,7 @@ bool ei_camera_init(void) {
     }
 
     sensor_t * s = esp_camera_sensor_get();
+    s->set_vflip(s,1);
     // initial sensors are flipped vertically and colors are a bit saturated
     if (s->id.PID == OV3660_PID) {
       s->set_vflip(s, 1); // flip it back

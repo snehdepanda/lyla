@@ -4,7 +4,7 @@
 #include "esp_camera.h"
 
 
-#define CAMERA_ESP32_CAM
+#define CAMERA_ESP32_S3
 
 #if defined(CAMERA_PICO)
 #define PWDN_GPIO_NUM     21
