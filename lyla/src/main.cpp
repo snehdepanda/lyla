@@ -65,11 +65,11 @@ void classify_image();
 #endif
 
 #if defined(CAMERA_ESP32_S3)
-#define S3_IND          12
+#define S3_IND          14
 #define SIGN            11
 #define CAM_INFER       2
 #define INFER_LED        45
-#define WAKE_UP_PIN     14
+#define WAKE_UP_PIN     12
 #define MISC_BUTTON     2
 #define LCD_SDA         41
 #define LCD_SCL         42
