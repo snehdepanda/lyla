@@ -7,7 +7,7 @@
 uint8_t *snapshot_buf = nullptr;
 static bool debug_nn = false;
 
-const uint8_t num_chars = 10;
+const uint8_t num_chars = 30;
 uint8_t tokens[num_chars];
 uint8_t ind = 0;
 
@@ -59,6 +59,7 @@ bool ei_camera_init(void) {
     }
 
     sensor_t * s = esp_camera_sensor_get();
+    s->set_vflip(s, 1);
 
     is_initialised = true;
     return true;
@@ -196,18 +197,14 @@ void classifyImage() {
     #if EI_CLASSIFIER_HAS_ANOMALY == 1
             ei_printf("    anomaly score: %.3f\n", result.anomaly);
     #endif
-        if (ind == num_chars) {
-            ind = 0;
-            Serial.printf("Sent %s\n", tokens);
-            client.sendTXT(tokens, num_chars);
-        }
+
 }
 
 void signInference(void *parameter) {
-    Serial.println("test");
+    // Serial.println("test");
     while(1) {
         if (infer) {
-            vTaskDelay(500 / portTICK_PERIOD_MS);
+            // vTaskDelay(500 / portTICK_PERIOD_MS);
 
             if (ei_sleep(5) != EI_IMPULSE_OK) {
                 continue;
@@ -229,7 +226,20 @@ void signInference(void *parameter) {
 
             classifyImage();
 
+            if (ind == num_chars) {
+                client.sendTXT(tokens, ind);
+                ind = 0;
+                Serial.printf("Sent %s\n", tokens);
+            }
+
             free(snapshot_buf); 
+        }
+        else {
+            if (ind != 0) {
+                client.sendTXT(tokens, ind);
+                ind = 0;
+                Serial.printf("Sent first %i letters of %s\n", ind, tokens);
+            }
         }
         
     }

@@ -4,12 +4,12 @@
 
 WebSocketsClient client;
 
-// const char* url = "10.105.252.142";  // sneh eduroam
-const char* url = "10.105.100.183";  // eduroam
+const char* url = "10.105.252.142";  // sneh eduroam
+// const char* url = "10.105.100.183";  // eduroam
 // const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
 const uint16_t port = 8888;
-// const char* endpoint = "/text2speech";  // text to speech
-const char* endpoint = "/websocket_esp32";
+const char* endpoint = "/text2speech";  // text to speech
+// const char* endpoint = "/websocket_esp32";
 
 void wsInitialize() {
     client.begin(url, port, endpoint);

@@ -50,7 +50,7 @@ RTC_DATA_ATTR struct {
     bool shouldSleep = true;
 } sleepState;
 
-volatile bool infer = false;
+volatile bool infer = true;
 bool is_initialised = false;
 
 void setup() {
@@ -58,8 +58,8 @@ void setup() {
     Serial.println("Device on");
 
 
-    // pinMode(S3_IND, OUTPUT);
-    // digitalWrite(S3_IND, HIGH);
+    pinMode(S3_IND, OUTPUT);
+    digitalWrite(S3_IND, HIGH);
     pinMode(WAKE_UP_PIN, INPUT_PULLUP);
 
     esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_UP_PIN, LOW);
@@ -80,8 +80,8 @@ void setup() {
 
     pinMode(SIGN, OUTPUT);
     digitalWrite(SIGN, LOW);
-    // pinMode(INFER_LED, OUTPUT);
-    // digitalWrite(INFER_LED, LOW);
+    pinMode(INFER_LED, OUTPUT);
+    digitalWrite(INFER_LED, LOW);
 
     pinMode(CAM_INFER, INPUT_PULLUP);
     // pinMode(MISC_BUTTON, INPUT_PULLUP);
@@ -115,23 +115,24 @@ void setup() {
 
     // xTaskCreate(
     //     toggleLED,
-    //     "Toggle LED",
+    //     "Toggle Infer LED",
     //     1024,
     //     NULL,
     //     2,
     //     NULL
     // );
-    Serial.println("Task 1 created");
+    // Serial.println("Toggling Task created");
 
-    xTaskCreate(
+    xTaskCreatePinnedToCore(
         signInference,
         "Signing Inference",
-        10000,
+        12000,
         NULL,
         3,
-        NULL
+        NULL,
+        (BaseType_t)0
     );
-    Serial.println("Task 2 created");
+    Serial.println("Inference Task created");
 
     xTaskCreatePinnedToCore(
         wsConnect,
@@ -142,7 +143,7 @@ void setup() {
         NULL,
         wifi_core
     );
-    Serial.println("Task 3 created");
+    Serial.println("Websockets Connection Task created");
 }
 
 void loop() {
@@ -157,17 +158,21 @@ void loop() {
 
 void toggleLED(void *parameter) {
     while(1) {
-        digitalWrite(SIGN, HIGH);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-        digitalWrite(SIGN, LOW);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        if (infer) {
+            digitalWrite(INFER_LED, HIGH);
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
+        else {
+            digitalWrite(INFER_LED, LOW);
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
     }
 }
 
 
 void flipInfer() {
     infer = !infer;
-    // digitalWrite(INFER_LED, infer);
+    digitalWrite(INFER_LED, infer);
 }
 
 
