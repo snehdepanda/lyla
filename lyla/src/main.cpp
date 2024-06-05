@@ -55,6 +55,10 @@ WebSocketsClient client;
 void setup()
 {
     Serial.begin(115200);
+    while (!psramInit()) {
+        Serial.println("PSRAM FAILED");
+    }
+    Serial.println("PSRAM Initialized");
 
     Serial.println("Edge Impulse Inferencing Demo");
     delay(2000);

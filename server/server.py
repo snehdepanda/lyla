@@ -38,7 +38,7 @@ class WebSocketHandlerESP32(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         global image_num
         print("Received JPEG image data {}".format(image_num))
-        if image_num < 35:
+        if image_num < 0:
             self.save_image(message, image_num)
         if image_num % 3 == 0:
             update_all_clients(message, bin=True)
