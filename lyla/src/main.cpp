@@ -32,11 +32,11 @@ send character array to amazon aws
 
 
 /* Private variables ------------------------------------------------------- */
-const char* url = "10.105.252.142";  // sneh eduroam
-// const char* url = "10.105.100.183";  // eduroam
+// const char* url = "10.105.252.142";  // sneh eduroam
+const char* url = "10.105.100.183";  // eduroam
 // const char* url = "192.168.4.82";  // Replace with your WebSocket server URL
 const uint16_t port = 8888;
-const char* endpoint = "/text2speech";
+const char* endpoint = "/esp32";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 bool is_initialised = false;
 uint8_t *snapshot_buf = nullptr; // points to the output of the capture
@@ -65,11 +65,11 @@ void classify_image();
 #endif
 
 #if defined(CAMERA_ESP32_S3)
-#define S3_IND          14
+#define S3_IND          12
 #define SIGN            11
-#define CAM_INFER       35
+#define CAM_INFER       2
 #define INFER_LED        45
-#define WAKE_UP_PIN     12
+#define WAKE_UP_PIN     14
 #define MISC_BUTTON     2
 #define LCD_SDA         41
 #define LCD_SCL         42
@@ -125,7 +125,16 @@ bool isButtonPressed() {
 void setup()
 {
     Serial.begin(115200);
-    Serial.println("Hello World!"); 
+    while (!psramInit()) {
+        Serial.println("PSRAM FAILED");
+    }
+    Serial.println("PSRAM Initialized");
+
+    // Serial.println("Total heap: %d", ESP.getHeapSize());
+    // Serial.println("Free heap: %d", ESP.getFreeHeap());
+    // Serial.println("Total PSRAM: %d", ESP.getPsramSize());
+    // Serial.println("Free PSRAM: %d", ESP.getFreePsram());
+    Serial.println(WiFi.macAddress()); 
 
     pinMode(S3_IND, OUTPUT); // LED: S3 is woken up
     digitalWrite(S3_IND, HIGH);
@@ -134,11 +143,11 @@ void setup()
     pinMode(INFER_LED, OUTPUT);
     digitalWrite(INFER_LED, LOW);
 
-    pinMode(CAM_INFER, INPUT_PULLUP); // Button: start camera inference
+    // pinMode(CAM_INFER, INPUT_PULLUP); // Button: start camera inference
     pinMode(WAKE_UP_PIN, INPUT_PULLUP); // Button: wake up from sleep
     pinMode(MISC_BUTTON, INPUT_PULLUP); // Button: miscellaneous
 
-    attachInterrupt(digitalPinToInterrupt(CAM_INFER), flipInfer, FALLING);
+    // attachInterrupt(digitalPinToInterrupt(CAM_INFER), flipInfer, FALLING);
     // attachInterrupt(digitalPinToInterrupt(WAKE_UP_PIN), flipSleep, FALLING);
     attachInterrupt(digitalPinToInterrupt(MISC_BUTTON), flipInfer, FALLING);
 
@@ -247,6 +256,7 @@ void loop()
             free(snapshot_buf);
             return;
         }
+        Serial.println("Captured Image");
 
         classify_image();
         
@@ -414,7 +424,7 @@ void classify_image() {
     client.loop();
 
     ei_impulse_result_t result = { 0 };
-
+    Serial.println("running classifier");
     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
         if (err != EI_IMPULSE_OK) {
             ei_printf("ERR: Failed to run classifier (%d)\n", err);

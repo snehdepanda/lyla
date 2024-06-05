@@ -49,7 +49,7 @@ def make_app():
     return tornado.web.Application([
         (r"/", MainHandler),
         (r"/websocket", WebSocketHandler),
-        (r"/websocket_esp32", WebSocketHandlerESP32)
+        (r"/esp32", WebSocketHandlerESP32)
     ])
 
 def update_all_clients(message, bin=False):
