@@ -5,14 +5,13 @@ import json  # Used for working with JSON data
 
 class Caller:
     def __init__(self):
-        # CHAT_API_KEY = 'sk-proj-rUsEo9MJd2sZg0Hy5bGGT3BlbkFJizaob0ZJyPssZG8iFWeI' # IT IS SECRET!
         self.client = OpenAI(
-            api_key='sk-proj-NPpCXNE8yseRY0g2O1XfT3BlbkFJPVA29cGH4x4lzVAJnxXq'
+            api_key= os.environ['OPENAI_API_KEY']
             )   # default calls os.environ.get("OPENAI_API_KEY")
 
         self.chunk_size = 1024
-        self.xi_key = "a38175cb391b4c1e2a2ba89b12f9dfb9"
-        self.xi_voice = "jGf6Nvwr7qkFPrcLThmD"
+        self.xi_key = os.environ['XI_API_KEY']
+        self.xi_voice = "jGf6Nvwr7qkFPrcLThmD" # Stacy Voice
         self.xi_url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.xi_voice}/stream" # URL for XI request
         self.output_path = "elevenlabs_test.mp3"
 
