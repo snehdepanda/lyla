@@ -22,11 +22,12 @@ class Caller:
             model="gpt-3.5-turbo",
             messages=[
                 # {"role": "system", "content": "Prompt: Interpret the stream of letters and numbers as a grammatically correct sentence. Take into account possible typos. If the input is just one number, treat each digit as an individual number. Respond only with the sentence."},
-                {"role": "system", "content": "Prompt: Take the input number and return each digit as an individual number from 0-9. For example, '1234' should be '1 2 3 4'."},
+                {"role": "system", "content": "Prompt: Return spaces in between each character in the input stream. For example, 1a3l should return 1 a 3 l"},
                 {"role": "user", "content": message}
             ]
             )
         chat_response = completion.choices[0].message.content
+        print(chat_response)
 
         headers = {
             "Accept": "application/json",
